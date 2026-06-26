@@ -6,7 +6,7 @@ export class Artwork {
     title: string;
     description: string | null;
     creationYear: number;
-    technique: ArtworkTechnics;
+    technic: ArtworkTechnics;
     dimensions: Dimensions | null; 
     sellPrice: number;             
     reservePrice: number;          
