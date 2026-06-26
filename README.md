@@ -48,8 +48,6 @@ prélève une commission et reverse le solde à l'artiste.
 - Un artiste n'appartient qu'à **une seule galerie** à la fois.
 - Un artiste peut être **transféré** vers une autre galerie avec l'accord d'un admin
   (on met à jour `galleryId` et `enterAt`).
-- Un artiste peut avoir un compte `User` optionnel pour consulter ses données.
-  Sans compte, c'est la galerie qui gère tout.
 - Un artiste ne peut pas avoir plus de **50 œuvres actives** simultanément
   dans une galerie (vérifié dans un Pipe NestJS).
 
@@ -306,18 +304,6 @@ price: 500010   // centimes → entier exact
 
 La conversion en euros se fait uniquement à l'affichage (`valeur / 100`).
 
-### Pas de soft delete (sauf `isActive` sur User)
-
-Le soft delete (`deletedAt`) a été intentionnellement retiré pour garder
-le code simple et accessible à toute l'équipe.
-
-À la place, on s'appuie sur les contraintes PostgreSQL :
-- Si on essaie de supprimer un artiste qui a des œuvres → PostgreSQL refuse
-- Si on essaie de supprimer une galerie qui a des artistes → PostgreSQL refuse
-
-`isActive` sur `User` reste car c'est une vraie règle métier du sujet
-(validation des comptes GALLERY par l'admin).
-
 ### Montants figés dans Sale
 
 Dans `Sale`, on stocke `salePrice`, `commissionRate`, `commissionAmount`
@@ -333,12 +319,6 @@ de jointure explicite. La table `exhibition_artworks` sera générée par la mig
 
 Pourquoi ? Le sujet ne demande pas de données supplémentaires sur cette relation.
 Le ManyToMany automatique est plus simple et suffisant.
-
-### Pas de relations TypeORM dans les entités de base
-
-Les entités ne déclarent pas encore `@ManyToOne`, `@OneToMany` etc.
-Chaque développeur ajoutera les relations dont il a besoin dans son module.
-Cela évite les imports circulaires au départ et garde les entités lisibles.
 
 ---
 
