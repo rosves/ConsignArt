@@ -1,35 +1,42 @@
 services:
   gateway:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${NODE_ENV} 
     container_name: gateway
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - DB_HOST=db 
+      - NODE_ENV=${NODE_ENV}
+      - DB_HOST=db
       - DB_PORT=5432
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_DATABASE=${DB_DATABASE}
       - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - .:/usr/src/app #synchronization 
+      - /usr/src/app/node_modules #isolation of node_modules
     depends_on:
       db:
-        condition: service_healthy 
+        condition: service_healthy
 
   db:
     image: postgres:16-alpine
     container_name: db
     environment:
-      POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-local_password}
-      POSTGRES_DB: ${DB_DATABASE:-consignart}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-consignart}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
       interval: 5s
       timeout: 5s
       retries: 5
+
   adminer:
     image: adminer:latest
     container_name: adminer
@@ -39,4 +46,4 @@ services:
       - db
 
 volumes:
-  pgdata: 
+  pgdata:
