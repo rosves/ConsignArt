@@ -1,4 +1,4 @@
-import { ArtistStatus } from "common/enum";
+import { ArtistStatus } from "src/common/enum";
 
 export class Artist {
   id: string;

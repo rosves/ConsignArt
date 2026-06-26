@@ -1,4 +1,4 @@
-import { UserRole } from "common/enum";
+import { UserRole } from "src/common/enum";
 
 export class User { 
   id: string;
