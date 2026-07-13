@@ -345,22 +345,6 @@ src/
 
 La connetion de la BDD se fait dans le **App.module.ts**. 
 
-``
-TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres' as const,
-        host: config.get<string>('database.host'),
-        port: config.get<number>('database.port'),
-        username: config.get<string>('database.username'),
-        password: config.get<string>('database.password'),
-        database: config.get<string>('database.name'),
-        entities: [User, Artist, Artwork, ArtworkStatusHistory, Sale, Exhibition, Loan],
-        synchronize: config.get<string>('app.nodeEnv') === 'development',
-        logging: config.get<string>('app.nodeEnv') === 'development',
-      }),
-    }),
-``
 donc pour faire la connexion on utilise Le module **TypeOrmModule** avec la méthode **forRootAsync** qui va permettre de charger une configuration de façon asynchrone. On injecte d'abord configModule pour vérifier si les variables d'environement sont bien chargées et ensuite on utilise **useFactory** qui va retourner la configuration de la base de donnée, Elle utilise les options suivant : 
 
 - **type** : qui définit le type de bdd
