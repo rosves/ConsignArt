@@ -340,7 +340,7 @@ src/
     ├── sale.entity.ts
     ├── exhibition.entity.ts
     └── loan.entity.ts
-```s
+```
 ### Connection BDD - 13/07/2026
 
 La connetion de la BDD se fait dans le **App.module.ts**. 
