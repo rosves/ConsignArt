@@ -16,8 +16,8 @@ services:
       - DB_DATABASE=${DB_DATABASE}
       - JWT_SECRET=${JWT_SECRET}
     volumes:
-      - .:/usr/src/app #synchronization 
-      - /usr/src/app/node_modules #isolation of node_modules
+      - .:/usr/src/app 
+      - /usr/src/app/node_modules 
     depends_on:
       db:
         condition: service_healthy
