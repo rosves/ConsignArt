@@ -1,29 +1,35 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from './common/config/config.module';
+import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User, Artist, Loan, Sale, Exhibition, Artwork, ArtworkStatusHistory } from "./Entities"
+import {
+  User,
+  Artist,
+  Artwork,
+  ArtworkStatusHistory,
+  Sale,
+  Exhibition,
+  Loan,
+} from './Entities';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal : true
-    }),
+    ConfigModule,
     TypeOrmModule.forRootAsync({
-      imports : [ConfigModule],
-      inject : [ConfigService],
-      useFactory : (config : ConfigService) => ({
-        type : "postgres",
-        host : config.getOrThrow<string>('DB_HOST'),
-        port : config.getOrThrow<number>('DB_PORT'),
-        username: config.getOrThrow<string>('DB_USERNAME'),
-        password: config.getOrThrow<string>('DB_PASSWORD'),
-        database: config.getOrThrow<string>('DB_DATABASE'),
-        entities: [],
-        synchronize: true,
-        logging: true,
-      })
-    })
-  ],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres' as const,
+        host: config.get<string>('database.host'),
+        port: config.get<number>('database.port'),
+        username: config.get<string>('database.username'),
+        password: config.get<string>('database.password'),
+        database: config.get<string>('database.name'),
+        entities: [User, Artist, Artwork, ArtworkStatusHistory, Sale, Exhibition, Loan],
+        synchronize: config.get<string>('app.nodeEnv') === 'development',
+        logging: config.get<string>('app.nodeEnv') === 'development',
+      }),
+    }),
+  ]
 })
 
 export class AppModule {}
