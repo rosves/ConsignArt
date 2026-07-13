@@ -341,3 +341,30 @@ src/
     ├── exhibition.entity.ts
     └── loan.entity.ts
 ```s
+### Connection BDD - 13/07/2026
+
+La connetion de la BDD se fait dans le **App.module.ts**. 
+
+``
+TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres' as const,
+        host: config.get<string>('database.host'),
+        port: config.get<number>('database.port'),
+        username: config.get<string>('database.username'),
+        password: config.get<string>('database.password'),
+        database: config.get<string>('database.name'),
+        entities: [User, Artist, Artwork, ArtworkStatusHistory, Sale, Exhibition, Loan],
+        synchronize: config.get<string>('app.nodeEnv') === 'development',
+        logging: config.get<string>('app.nodeEnv') === 'development',
+      }),
+    }),
+``
+donc pour faire la connexion on utilise Le module **TypeOrmModule** avec la méthode **forRootAsync** qui va permettre de charger une configuration de façon asynchrone. On injecte d'abord configModule pour vérifier si les variables d'environement sont bien chargées et ensuite on utilise **useFactory** qui va retourner la configuration de la base de donnée, Elle utilise les options suivant : 
+
+- **type** : qui définit le type de bdd
+- **les options** pour faire la connection (port, host, username....)
+- **entities** : qui définit les tables à créer dans la bdd, à savoir que même si vous definissait la table dans cette option mais que vous n'avez pas décorer l'entité avec les décorateurs de typeORM (Entity, PrimaryCollumn) celle-ci ne sera pas créer dans la bdd donc il faudra décorer vos entités selon vos besoins. 
+- **Synchronize** : qui va permette de synchroniser votre bdd avec vos entités à chaque fois que vous lancé votre projet (A NE PAS UTILISER EN PROD).
+- **logging** : permet de logger les requete sql effectuer sur la bdd dans le terminal.    
