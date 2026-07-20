@@ -11,6 +11,9 @@ import {
   Exhibition,
   Loan,
 } from './Entities';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+
 
 @Module({
   imports: [
@@ -29,6 +32,8 @@ import {
         logging: config.get<string>('app.nodeEnv') === 'development',
       }),
     }),
+    AuthModule,
+    UsersModule,
   ]
 })
 
