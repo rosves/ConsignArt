@@ -35,6 +35,19 @@ export class AuthService {
         return {  accessToken, refreshToken }
     }
 
+    public async refreshToken( refreshToken : string ) : Promise<{ accessToken : string, refreshToken : string}> {
+        
+        const secret = this.configService.get('jwt.refreshSecret');
+
+        const IsTokenVerified = this.jwtService.verify(refreshToken);
+
+        if(!IsTokenVerified){
+            throw new UnauthorizedException('Your not allowed !');
+        }
+
+        const user = this.userService.findById(IsTokenVerified.sub)
+    }
+
     public async register(dto: CreateUserDTO) : Promise<{ accessToken : string, refreshToken : string}> { 
 
         const IsEmailAlreadyExist = await this.userService.findByEmail(dto.email);
@@ -59,7 +72,7 @@ export class AuthService {
 
         await this.userService.updateRefresToken(user.id, hashedRefreshToken)
 
-        return { accessToken, refreshToken };
+        return { accessToken, refreshToken,  };
     }
 
     public async login(dto : LoginDTO) : Promise<{ accessToken : string, refreshToken : string}> {
