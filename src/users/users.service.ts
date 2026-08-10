@@ -28,7 +28,11 @@ export class UsersService {
   }
 
   public async updateRefresToken(userId : string, refreshToken : string ) : Promise<void> { 
-    await this.userRepository.update(userId, { hashedRefreshToken : refreshToken })
+    await this.userRepository.update(userId, { hashedRefreshToken : refreshToken });
+  }
+
+  public async resetRefreshToken(userId : string) : Promise<void> { 
+    await this.userRepository.update(userId, { hashedRefreshToken : null });
   }
 
 }

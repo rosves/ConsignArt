@@ -1,4 +1,4 @@
-import { ConflictException, Injectable,UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable,UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { UserRole } from 'src/common/enum';
@@ -32,20 +32,39 @@ export class AuthService {
             expiresIn: this.configService.get('jwt.refreshExpiresIn'),
         })
 
-        return {  accessToken, refreshToken }
+        return { accessToken, refreshToken }
     }
 
-    public async refreshToken( refreshToken : string ) : Promise<{ accessToken : string, refreshToken : string}> {
+    public async refreshToken( OldRefreshToken : string ) : Promise<{ accessToken : string, refreshToken : string}> {
         
         const secret = this.configService.get('jwt.refreshSecret');
 
-        const IsTokenVerified = this.jwtService.verify(refreshToken);
+        const isTokenVerified = this.jwtService.verify(OldRefreshToken, { secret : secret });
 
-        if(!IsTokenVerified){
-            throw new UnauthorizedException('Your not allowed !');
+        const user = await this.userService.findById(isTokenVerified.sub);
+
+        if(!user){
+            throw new NotFoundException('User not found !');
         }
 
-        const user = this.userService.findById(IsTokenVerified.sub)
+        if(!user.hashedRefreshToken) {
+            throw new UnauthorizedException('Invalid refresh token !');
+        }
+
+        const isRefreshTokenValid = await compare(OldRefreshToken, user.hashedRefreshToken); 
+        
+        if(!isRefreshTokenValid){
+            throw new UnauthorizedException('Invalid refresh token !');
+        } 
+
+        const { accessToken, refreshToken } = await this.generateTokens(user.id,user.role);
+
+        const newHashedRefreshToken = await hash(refreshToken, 10);
+
+        await this.userService.updateRefresToken(user.id, newHashedRefreshToken);
+
+        return { accessToken, refreshToken }
+
     }
 
     public async register(dto: CreateUserDTO) : Promise<{ accessToken : string, refreshToken : string}> { 
@@ -83,9 +102,9 @@ export class AuthService {
             throw new UnauthorizedException('Wrong Email or Password !');
         }
 
-        const Password = await compare(dto.password, user.password);
+        const password = await compare(dto.password, user.password);
 
-        if(!Password){
+        if(!password){
             throw new UnauthorizedException('Wrong Email or Password !');
         }
 
@@ -96,6 +115,18 @@ export class AuthService {
         await this.userService.updateRefresToken(user.id, hashedRefreshToken)
 
         return { accessToken, refreshToken };
+
+    }
+
+    public async logout(accessToken : string) : Promise<void> {
+
+        const secret = this.configService.get('jwt.secret');
+        
+        const payload = this.jwtService.verify(accessToken, { secret });
+        
+        await this.userService.resetRefreshToken(payload.sub);
+        
+        return
 
     }
 }

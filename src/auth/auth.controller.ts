@@ -1,8 +1,8 @@
-import { Body, Controller, Post, Res } from '@nestjs/common';
+import { Body, Controller, Post, Res, Patch, Req, NotFoundException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDTO } from 'src/users/dto/createUserDTO';
 import { LoginDTO } from 'src/users/dto/loginDTO';
-import type { Response } from 'express';
+import type { Response, Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -36,5 +36,36 @@ export class AuthController {
     const { accessToken, refreshToken } = await this.authService.login(dto);
     this.setCookie(res, accessToken, refreshToken);
     return res.json({ message: 'login successful' });
+  }
+
+  @Post('refreshToken')
+  async refreshToken(@Req() req : Request, @Res() res: Response ) : Promise<Response> { 
+    const oldRefreshToken = req.cookies['refreshToken'];
+
+    if(!oldRefreshToken){
+      throw new  NotFoundException('No refreshToken found !');
+    }
+
+    const { accessToken, refreshToken } = await this.authService.refreshToken(oldRefreshToken);
+
+    this.setCookie(res, accessToken, refreshToken);
+
+    return res.json({ message: 'Token refresh succesfully !' });
+  }
+
+  @Post('logout')
+  async logout(@Req() req : Request, @Res() res: Response ) : Promise<Response> { 
+    const acessToken = req.cookies['accessToken'];
+
+    if(!acessToken){
+      throw new  NotFoundException('You are not authorized !');
+    }
+
+    await this.authService.logout(acessToken);
+
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+
+    return res.json({ message: 'Logout succesfully !' });
   }
 }
