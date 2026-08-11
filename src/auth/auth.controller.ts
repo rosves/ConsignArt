@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { CreateUserDTO } from 'src/users/dto/createUserDTO';
 import { LoginDTO } from 'src/users/dto/loginDTO';
 import type { Response, Request } from 'express';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -24,7 +25,9 @@ export class AuthController {
     });
   }
 
+
   @Post('register')
+  @Public()
   async register( @Body() dto : CreateUserDTO, @Res() res: Response ) : Promise<Response> {
     const { accessToken, refreshToken } = await this.authService.register(dto);
     this.setCookie(res, accessToken, refreshToken);
@@ -32,6 +35,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
   async login( @Body() dto : LoginDTO, @Res() res: Response ) : Promise<Response> {
     const { accessToken, refreshToken } = await this.authService.login(dto);
     this.setCookie(res, accessToken, refreshToken);
