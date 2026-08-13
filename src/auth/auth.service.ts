@@ -118,15 +118,7 @@ export class AuthService {
 
     }
 
-    public async logout(accessToken : string) : Promise<void> {
-
-        const secret = this.configService.get('jwt.secret');
-        
-        const payload = this.jwtService.verify(accessToken, { secret });
-        
-        await this.userService.resetRefreshToken(payload.sub);
-        
-        return
-
+    public async logout(userId : string) : Promise<void> {
+        await this.userService.resetRefreshToken(userId);        
     }
 }

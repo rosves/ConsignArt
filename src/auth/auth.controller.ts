@@ -4,6 +4,8 @@ import { CreateUserDTO } from 'src/users/dto/createUserDTO';
 import { LoginDTO } from 'src/users/dto/loginDTO';
 import type { Response, Request } from 'express';
 import { Public } from 'src/common/decorators/public.decorator';
+import { User } from 'src/common/decorators/user.decorator';
+import type { UserType } from './type/jwtPayload';
 
 @Controller('auth')
 export class AuthController {
@@ -28,22 +30,22 @@ export class AuthController {
 
   @Post('register')
   @Public()
-  async register( @Body() dto : CreateUserDTO, @Res() res: Response ) : Promise<Response> {
+  async register( @Body() dto : CreateUserDTO, @Res({ passthrough : true}) res: Response ){
     const { accessToken, refreshToken } = await this.authService.register(dto);
     this.setCookie(res, accessToken, refreshToken);
-    return res.json({ message: 'Register successful' });
+    return { message: 'Register successful' };
   }
 
   @Post('login')
   @Public()
-  async login( @Body() dto : LoginDTO, @Res() res: Response ) : Promise<Response> {
+  async login( @Body() dto : LoginDTO, @Res({ passthrough : true}) res: Response ){
     const { accessToken, refreshToken } = await this.authService.login(dto);
     this.setCookie(res, accessToken, refreshToken);
-    return res.json({ message: 'login successful' });
+    return { message: 'login successful' };
   }
 
   @Post('refreshToken')
-  async refreshToken(@Req() req : Request, @Res() res: Response ) : Promise<Response> { 
+  async refreshToken(@Req() req : Request, @Res({ passthrough : true}) res: Response ){ 
     const oldRefreshToken = req.cookies['refreshToken'];
 
     if(!oldRefreshToken){
@@ -54,22 +56,16 @@ export class AuthController {
 
     this.setCookie(res, accessToken, refreshToken);
 
-    return res.json({ message: 'Token refresh succesfully !' });
+    return { message: 'Token refresh succesfully !' };
   }
 
   @Post('logout')
-  async logout(@Req() req : Request, @Res() res: Response ) : Promise<Response> { 
-    const acessToken = req.cookies['accessToken'];
-
-    if(!acessToken){
-      throw new  NotFoundException('You are not authorized !');
-    }
-
-    await this.authService.logout(acessToken);
+  async logout(@User() user : UserType, @Res({ passthrough : true}) res: Response ){ 
+    await this.authService.logout(user.id);
 
     res.clearCookie('accessToken');
     res.clearCookie('refreshToken');
 
-    return res.json({ message: 'Logout succesfully !' });
+    return { message : 'Logout succesfully !' };
   }
 }

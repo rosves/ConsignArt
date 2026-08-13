@@ -13,8 +13,10 @@ import {
 } from './Entities';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
-import { APP_GUARD } from '@nestjs/core';
-import { JwtGuard } from './common/guards/jwt.guards';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { JwtGuard } from './common/guards/jwt.guard';
+import { RoleGuard } from './common/guards/role.guard';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 
 @Module({
@@ -38,9 +40,18 @@ import { JwtGuard } from './common/guards/jwt.guards';
     UsersModule,
   ],
   providers : [
+    // on définit ici les guards à cause des injections de dépendances
+    {
+      provide : APP_GUARD, // correspond à un token spéciale pour définir le guard globalement
+      useClass : JwtGuard,
+    },
     {
       provide : APP_GUARD,
-      useClass : JwtGuard,
+      useClass : RoleGuard
+    },
+    {
+      provide : APP_INTERCEPTOR,
+      useClass : LoggingInterceptor
     }
   ]
 })
