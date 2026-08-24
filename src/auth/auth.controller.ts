@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Res, Patch, Req, NotFoundException } from '@nestjs/common';
+import { Body, Controller, Post, Res, Patch, Req, NotFoundException, HttpCode } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDTO } from 'src/users/dto/createUserDTO';
 import { LoginDTO } from 'src/users/dto/loginDTO';
@@ -6,6 +6,8 @@ import type { Response, Request } from 'express';
 import { Public } from 'src/common/decorators/public.decorator';
 import { User } from 'src/common/decorators/user.decorator';
 import type { UserType } from './type/jwtPayload';
+import { NormalizeEmailPipe } from 'src/common/pipes/normalize-email.pipe';
+
 
 @Controller('auth')
 export class AuthController {
@@ -30,21 +32,23 @@ export class AuthController {
 
   @Post('register')
   @Public()
-  async register( @Body() dto : CreateUserDTO, @Res({ passthrough : true}) res: Response ){
+  async register( @Body(NormalizeEmailPipe) dto : CreateUserDTO ,@Res({ passthrough : true}) res: Response ){
     const { accessToken, refreshToken } = await this.authService.register(dto);
     this.setCookie(res, accessToken, refreshToken);
     return { message: 'Register successful' };
   }
 
   @Post('login')
+  @HttpCode(200)
   @Public()
-  async login( @Body() dto : LoginDTO, @Res({ passthrough : true}) res: Response ){
+  async login( @Body(NormalizeEmailPipe) dto : LoginDTO, @Res({ passthrough : true}) res: Response ){
     const { accessToken, refreshToken } = await this.authService.login(dto);
     this.setCookie(res, accessToken, refreshToken);
     return { message: 'login successful' };
   }
 
   @Post('refreshToken')
+  @HttpCode(200)
   async refreshToken(@Req() req : Request, @Res({ passthrough : true}) res: Response ){ 
     const oldRefreshToken = req.cookies['refreshToken'];
 
@@ -60,6 +64,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @HttpCode(200)
   async logout(@User() user : UserType, @Res({ passthrough : true}) res: Response ){ 
     await this.authService.logout(user.id);
 

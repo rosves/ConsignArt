@@ -61,7 +61,7 @@ export class AuthService {
 
         const newHashedRefreshToken = await hash(refreshToken, 10);
 
-        await this.userService.updateRefresToken(user.id, newHashedRefreshToken);
+        await this.userService.updateRefreshToken(user.id, newHashedRefreshToken);
 
         return { accessToken, refreshToken }
 
@@ -89,7 +89,7 @@ export class AuthService {
 
         const hashedRefreshToken = await hash(refreshToken, 10);
 
-        await this.userService.updateRefresToken(user.id, hashedRefreshToken)
+        await this.userService.updateRefreshToken(user.id, hashedRefreshToken)
 
         return { accessToken, refreshToken,  };
     }
@@ -112,7 +112,7 @@ export class AuthService {
 
         const hashedRefreshToken = await hash(refreshToken, 10);
 
-        await this.userService.updateRefresToken(user.id, hashedRefreshToken)
+        await this.userService.updateRefreshToken(user.id, hashedRefreshToken)
 
         return { accessToken, refreshToken };
 

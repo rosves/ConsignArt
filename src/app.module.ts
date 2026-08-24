@@ -17,6 +17,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtGuard } from './common/guards/jwt.guard';
 import { RoleGuard } from './common/guards/role.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 
 @Module({
@@ -52,6 +53,10 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     {
       provide : APP_INTERCEPTOR,
       useClass : LoggingInterceptor
+    },
+    {
+      provide : APP_INTERCEPTOR,
+      useClass : ResponseInterceptor
     }
   ]
 })
