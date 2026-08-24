@@ -18,9 +18,9 @@ prélève une commission et reverse le solde à l'artiste.
 - **Backend** : NestJS (Node.js)
 - **Base de données** : PostgreSQL (via Docker en production)
 - **ORM** : TypeORM
-- **Auth** : JWT (access token + refresh token)
+- **Auth** : JWT (access token + refresh token) stockés en cookies HTTP-only
 - **Validation** : class-validator + class-transformer
-- **Tests** : Vitest
+- **Tests** : Jest
 - **Conteneurisation** : Docker + docker-compose
 
 ### Les 4 rôles utilisateurs
@@ -34,7 +34,146 @@ prélève une commission et reverse le solde à l'artiste.
 
 ---
 
-## 2. Règles métier
+## 2. Lancement du projet
+
+```bash
+# 1. Copier le fichier d'environnement et remplir les variables
+cp .env.example .env
+
+# 2. Lancer le projet (API + PostgreSQL + Adminer)
+docker compose up --build
+```
+
+- API disponible sur `http://localhost:3000/api/v1`
+- Adminer (interface BDD) disponible sur `http://localhost:8080`
+
+---
+
+## 3. Authentification
+
+### Routes disponibles
+
+| Méthode | Route | Accès | Description |
+|---------|-------|-------|-------------|
+| POST | `/api/v1/auth/register` | Public | Inscription |
+| POST | `/api/v1/auth/login` | Public | Connexion |
+| POST | `/api/v1/auth/refreshToken` | Authentifié | Renouveler les tokens |
+| POST | `/api/v1/auth/logout` | Authentifié | Déconnexion |
+
+### Exemple d'inscription
+
+```json
+POST /api/v1/auth/register
+{
+  "email": "gallery@test.com",
+  "password": "password123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "role": "gallery"
+}
+```
+
+> ⚠️ Les comptes `GALLERY` ont `isActive = false` par défaut. Un `ADMIN` doit les valider avant qu'ils puissent accéder à la plateforme. Le rôle `ADMIN` ne peut pas s'inscrire via cette route.
+
+### Fonctionnement des tokens JWT
+
+- **Access token** : durée courte (15min) — utilisé pour accéder aux routes protégées
+- **Refresh token** : durée longue (7j) — utilisé pour renouveler l'access token sans se reconnecter
+- Les deux tokens sont stockés en **cookies HTTP-only** → inaccessibles par JavaScript (protection XSS)
+- Le refresh token est **haché avec bcrypt en base** → protection en cas de fuite BDD
+- **Refresh token rotation** : à chaque appel de `/refreshToken`, l'ancien token est invalidé et un nouveau est généré
+
+### Fonctionnement des guards
+
+- **JwtGuard** : appliqué **globalement** sur toutes les routes. Vérifie la validité du cookie `accessToken`.
+- **@Public()** : décorateur à placer sur une route pour la rendre publique (ex: register, login).
+- **RolesGuard** : appliqué **globalement**, vérifie que le rôle de l'utilisateur connecté correspond au(x) rôle(s) requis par la route.
+- **@Roles(UserRole.ADMIN)** : décorateur à placer sur une route pour restreindre l'accès à un ou plusieurs rôles.
+- **@CurrentUser()** : décorateur de paramètre pour accéder à l'utilisateur connecté dans un controller (`req.user`).
+
+```typescript
+// Exemple d'utilisation
+@Get('profile')
+@Roles(UserRole.GALLERY, UserRole.ARTIST)
+getProfile(@CurrentUser() user: UserType) {
+  return user;
+}
+```
+
+---
+
+## 4. Format des réponses
+
+Toutes les réponses sont formatées de façon uniforme par le `ResponseInterceptor`.
+
+**Succès :**
+```json
+{
+  "data": { ... },
+  "meta": {
+    "statusCode": 200,
+    "path": "/api/v1/auth/login"
+  },
+  "timestamp": "2026-08-13T13:02:20Z"
+}
+```
+
+**Erreur :**
+```json
+{
+  "statusCode": 401,
+  "message": "Wrong Email or Password !",
+  "timestamp": "2026-08-13T13:02:20Z",
+  "path": "/api/v1/auth/login"
+}
+```
+
+---
+
+## 5. Logging
+
+Chaque requête (succès et erreur) est automatiquement enregistrée par le `LoggingInterceptor`.
+
+**Fichier de log** : `logs/requests.log` à la racine du projet.
+- Le dossier `logs/` est créé automatiquement au démarrage si il n'existe pas.
+- Les fichiers `.log` sont ignorés par Git (`.gitignore`), seul le dossier est versionné via `.gitkeep`.
+
+**Format des logs :**
+```
+[2026-08-13T13:02:20Z] POST /api/v1/auth/login - SUCCESS - user-id - 45ms
+[2026-08-13T13:02:20Z] POST /api/v1/auth/login - ERROR - anonymous - 12ms - Wrong Email or Password !
+```
+
+---
+
+## 6. Connexion à la base de données
+
+La connexion se fait dans `app.module.ts` via `TypeOrmModule.forRootAsync`.
+
+`forRootAsync` permet de charger la configuration de façon **asynchrone** — on attend que `ConfigService` ait fini de lire le `.env` avant de se connecter. La configuration est centralisée dans `src/common/config/configurations/database.config.ts`.
+
+Options clés :
+- **`type`** : type de BDD (`postgres`)
+- **`host`, `port`, `username`, `password`, `database`** : options de connexion lues depuis le `.env`
+- **`entities`** : liste des entités TypeORM → définit les tables à créer. ⚠️ Une entité doit être décorée avec `@Entity()` et `@PrimaryGeneratedColumn()` pour que la table soit créée en base.
+- **`synchronize: true`** : synchronise automatiquement la BDD avec les entités au démarrage. ⚠️ **Ne jamais utiliser en production** — utiliser les migrations à la place.
+- **`logging: true`** : affiche toutes les requêtes SQL dans le terminal (dev uniquement).
+
+### Configuration des variables d'environnement
+
+Les variables sont chargées via `@nestjs/config` avec des **namespaces** :
+
+```typescript
+configService.get('database.host')   // DB_HOST
+configService.get('jwt.secret')      // JWT_SECRET
+configService.get('app.port')        // PORT
+```
+
+La validation des variables est faite au démarrage dans `src/common/config/validations/env.validation.ts` — si une variable obligatoire est manquante, l'app refuse de démarrer.
+
+---
+
+## 7. Règles métier
 
 ### Utilisateurs
 
@@ -42,6 +181,7 @@ prélève une commission et reverse le solde à l'artiste.
   Un `ADMIN` doit le valider avant que la galerie puisse accéder à la plateforme.
 - Les autres rôles (`ARTIST`, `COLLECTOR`) sont actifs dès l'inscription.
 - Les mots de passe sont hashés avec **bcrypt** — jamais stockés en clair.
+- L'email est **normalisé en minuscule** automatiquement via `NormalizeEmailPipe`.
 
 ### Artistes
 
@@ -58,7 +198,6 @@ prélève une commission et reverse le solde à l'artiste.
 - Une œuvre au statut `ON_LOAN` **ne peut pas être vendue**.
 - Une œuvre au statut `SOLD` **ne peut plus changer de statut**.
 - Tout changement de statut crée un enregistrement dans `ArtworkStatusHistory`.
-- Les statuts possibles et leurs transitions :
 
 ```
 AVAILABLE ──→ ON_LOAN   (ajout à une exposition ou prêt)
@@ -69,8 +208,6 @@ SOLD      ──→ RETURNED  (retour exceptionnel, géré par admin)
 
 ### Ventes
 
-- La commission est calculée selon le prix de vente :
-
 ```
 Prix ≤ 5 000€            → commission = 40%
 5 000€ < prix ≤ 20 000€  → commission = 35%
@@ -79,30 +216,22 @@ Prix > 20 000€           → commission = 30%
 Montant artiste = prix de vente - commission
 ```
 
-- Une vente doit se faire dans une **transaction TypeORM** :
-  1. Créer la `Sale`
-  2. Passer l'`Artwork` en `SOLD`
-  3. Créer un `ArtworkStatusHistory`
-  → Si une étape échoue, tout est annulé (rollback)
-
-- Une facture (`invoiceRef`) est générée pour l'acheteur.
-- Un relevé de vente (`artistStatementRef`) est généré pour l'artiste.
+Une vente se fait dans une **transaction TypeORM** :
+1. Créer la `Sale`
+2. Passer l'`Artwork` en `SOLD`
+3. Créer un `ArtworkStatusHistory`
+→ Si une étape échoue, tout est annulé (rollback)
 
 ### Expositions
 
 - Une exposition doit contenir **au moins une œuvre** à la création.
 - À la création, les œuvres sélectionnées passent en `ON_LOAN`.
 - Une œuvre `ON_LOAN` **ne peut pas être vendue** pendant l'exposition.
-- Une œuvre ne peut pas être ajoutée à une exposition si elle est déjà `ON_LOAN`.
-- La relation Exhibition ↔ Artwork est un **ManyToMany géré automatiquement par TypeORM**
-  via `@ManyToMany()` + `@JoinTable()`. La table de jointure `exhibition_artworks`
-  sera créée automatiquement par la migration — pas besoin d'entité explicite.
 
 ### Prêts
 
 - On ne peut pas prêter une œuvre déjà au statut `ON_LOAN`.
-- Quand l'œuvre revient, on enregistre `returnedAt` et on repasse
-  l'œuvre en `AVAILABLE`.
+- Quand l'œuvre revient, on enregistre `returnedAt` et on repasse l'œuvre en `AVAILABLE`.
 
 ### Rapports
 
@@ -114,7 +243,7 @@ Montant artiste = prix de vente - commission
 
 ---
 
-## 3. Les entités
+## 8. Les entités
 
 ### Vue d'ensemble des relations
 
@@ -130,12 +259,7 @@ User (GALLERY) ──< Artist ──< Artwork ──< ArtworkStatusHistory
 User (COLLECTOR) ──< Sale ──> Artwork
 ```
 
----
-
 ### `User` — Identité et authentification
-
-Gère uniquement qui tu es et comment tu te connectes.
-Ne contient pas de données métier spécifiques à un rôle.
 
 | Champ | Type | Description |
 |-------|------|-------------|
@@ -146,77 +270,49 @@ Ne contient pas de données métier spécifiques à un rôle.
 | `lastName` | varchar | nom |
 | `role` | enum | ADMIN / GALLERY / ARTIST / COLLECTOR |
 | `isActive` | boolean (false) | false par défaut, validation admin pour GALLERY |
-| `hashedRefreshToken` | varchar nullable | pour la rotation JWT, null après logout |
-| `createdAt` | timestamp | date de création |
-| `updatedAt` | timestamp | date de dernière modification |
-
-**Le collectionneur n'a pas d'entité séparée.**
-Un collectionneur EST un `User` avec `role = COLLECTOR`. Sa trace dans le
-système c'est uniquement dans `Sale.buyerId`. Il n'a pas de données métier propres.
-
----
+| `hashedRefreshToken` | varchar nullable | refresh token haché, null après logout |
+| `createdAt` | timestamp | |
+| `updatedAt` | timestamp | |
 
 ### `Artist` — Fiche métier de l'artiste
-
-Entité métier créée et gérée par une galerie.
-Séparée de `User` car un artiste peut exister sans compte de connexion.
 
 | Champ | Type | Description |
 |-------|------|-------------|
 | `id` | uuid | |
-| `firstName` | varchar | |
-| `lastName` | varchar | |
+| `firstName` / `lastName` | varchar | |
 | `biography` | text nullable | |
 | `portfolioURL` | varchar nullable | |
 | `nationality` | varchar nullable | |
 | `enterAt` | date | date d'entrée dans la galerie actuelle |
 | `status` | enum | ACTIVE / INACTIVE |
-| `galleryId` | uuid (FK → User) | galerie qui gère cet artiste |
+| `galleryId` | uuid (FK → User) | galerie qui gère cet artiste (nullable) |
 | `userAccountId` | uuid nullable (FK → User) | compte de connexion optionnel |
-| `createdAt` | timestamp | |
-| `updatedAt` | timestamp | |
-
----
 
 ### `Artwork` — L'œuvre d'art
-
-Entité centrale du projet.
 
 | Champ | Type | Description |
 |-------|------|-------------|
 | `id` | uuid | |
 | `title` | varchar | |
-| `description` | text nullable | |
-| `creationYear` | int | |
 | `technique` | enum | OIL / PHOTOGRAPHY / SCULPTURE / ... |
 | `dimensions` | jsonb nullable | `{ height, width, depth? }` en cm |
 | `sellPrice` | int | prix en **centimes** |
 | `reservePrice` | int | prix plancher en **centimes** |
 | `status` | enum | AVAILABLE / ON_LOAN / SOLD / RETURNED |
-| `imageURL` | varchar nullable | |
 | `consignedAt` | timestamptz | date de dépôt en consignation |
 | `artistId` | uuid (FK → Artist) | |
-| `createdAt` | timestamp | |
-| `updatedAt` | timestamp | |
-
----
 
 ### `ArtworkStatusHistory` — Journal des statuts
 
 Table **append-only** : INSERT uniquement, jamais d'UPDATE ni de DELETE.
-Exigé dans le sujet pour tracer tous les changements de statut.
 
 | Champ | Type | Description |
 |-------|------|-------------|
-| `id` | uuid | |
 | `artworkId` | uuid (FK → Artwork) | |
 | `fromStatus` | enum nullable | statut avant (null = création) |
 | `toStatus` | enum | statut après |
-| `reason` | varchar nullable | ex: "Sold to collector", "Returned" |
-| `changedById` | uuid nullable (FK → User) | null si changement automatique |
-| `createdAt` | timestamp | |
-
----
+| `reason` | varchar nullable | motif du changement |
+| `changedById` | uuid nullable | null si changement automatique |
 
 ### `Sale` — Contrat de vente
 
@@ -224,131 +320,102 @@ Table **immuable** : pas d'`updatedAt`. Une vente ne se modifie jamais.
 
 | Champ | Type | Description |
 |-------|------|-------------|
-| `id` | uuid | |
-| `artworkId` | uuid unique (FK → Artwork) | unique = une œuvre vendue une seule fois |
+| `artworkId` | uuid unique | une œuvre vendue une seule fois |
 | `buyerId` | uuid (FK → User COLLECTOR) | |
 | `salePrice` | int | prix final en **centimes**, figé à la vente |
 | `commissionRate` | decimal | taux appliqué (30, 35 ou 40), figé |
 | `commissionAmount` | int | montant galerie en **centimes**, figé |
 | `artistAmount` | int | montant artiste en **centimes**, figé |
 | `soldAt` | timestamptz | date/heure exacte de la vente |
-| `invoiceRef` | varchar nullable | référence facture acheteur |
-| `artistStatementRef` | varchar nullable | référence relevé artiste |
-| `createdAt` | timestamp | |
+
+### `Exhibition` et `Loan`
+
+- `Exhibition` : exposition organisée par une galerie, liée à des œuvres via `@ManyToMany` (table de jointure `exhibition_artworks` créée automatiquement par TypeORM).
+- `Loan` : prêt d'une œuvre à une galerie **externe**. `returnedAt = null` signifie que le prêt est actif.
 
 ---
 
-### `Exhibition` — Exposition
-
-Organisée par une galerie, regroupe des œuvres via une relation ManyToMany.
-
-| Champ | Type | Description |
-|-------|------|-------------|
-| `id` | uuid | |
-| `name` | varchar | |
-| `startDate` | timestamptz | |
-| `endDate` | timestamptz | |
-| `location` | varchar nullable | lieu physique OU lien virtuel |
-| `type` | enum | PHYSICAL / VIRTUAL |
-| `description` | text nullable | |
-| `galleryId` | uuid (FK → User GALLERY) | |
-| `createdAt` | timestamp | |
-| `updatedAt` | timestamp | |
-
-**Relation avec Artwork :** gérée via `@ManyToMany()` + `@JoinTable()` dans TypeORM.
-La table de jointure `exhibition_artworks(exhibitionId, artworkId)` est créée
-automatiquement par la migration. Pas besoin d'entité séparée.
-
----
-
-### `Loan` — Prêt d'une œuvre à une autre galerie
-
-Différent d'une `Exhibition` : le prêt est vers une galerie **externe**.
-Dans les deux cas, l'œuvre passe en `ON_LOAN`.
-
-| Champ | Type | Description |
-|-------|------|-------------|
-| `id` | uuid | |
-| `artworkId` | uuid (FK → Artwork) | |
-| `borrowingGalleryId` | uuid (FK → User GALLERY) | galerie qui emprunte |
-| `startDate` | timestamptz | |
-| `endDate` | timestamptz | fin prévue |
-| `returnedAt` | timestamptz nullable | null = prêt actif |
-| `conditions` | text nullable | conditions du prêt |
-| `createdAt` | timestamp | |
-| `updatedAt` | timestamp | |
-
----
-
-## 4. Choix techniques importants
+## 9. Choix techniques importants
 
 ### UUID pour tous les IDs
-
-On utilise des UUIDs au lieu d'entiers auto-incrémentés.
-
-- Un entier expose le volume : si le dernier user est l'id `1042`, on sait qu'il y a ~1000 users.
-- Un entier permet l'énumération : tester `/users/1`, `/users/2`...
-- Un UUID est non-prédictible et ne révèle aucune information.
+Non-prédictible, non-énumérable. Un entier expose le volume et permet l'énumération des ressources.
 
 ### Prix en centimes
-
-Tous les prix sont stockés en **centimes d'euros** sous forme d'entier.
-
 ```
-// ❌ Jamais ça
-price: 5000.10  // float → peut donner 5000.09999... en mémoire
+// ❌ float → problèmes de précision
+price: 5000.10  → peut donner 5000.09999... en mémoire
 
-// ✅ Toujours ça
-price: 500010   // centimes → entier exact
+// ✅ centimes → entier exact
+price: 500010
 ```
-
-La conversion en euros se fait uniquement à l'affichage (`valeur / 100`).
+Conversion en euros uniquement à l'affichage (`valeur / 100`).
 
 ### Montants figés dans Sale
-
-Dans `Sale`, on stocke `salePrice`, `commissionRate`, `commissionAmount`
-et `artistAmount` directement. On ne les recalcule pas depuis `Artwork`.
-
-Pourquoi ? Le prix d'une œuvre peut changer après la vente. Les données
-financières doivent être **figées au moment de la transaction**.
+`salePrice`, `commissionRate`, `commissionAmount` et `artistAmount` sont stockés directement dans `Sale`. Le prix d'une œuvre peut changer après la vente — les données financières doivent être figées au moment de la transaction.
 
 ### ManyToMany automatique pour Exhibition ↔ Artwork
-
-On utilise le `@ManyToMany()` automatique de TypeORM au lieu d'une entité
-de jointure explicite. La table `exhibition_artworks` sera générée par la migration.
-
-Pourquoi ? Le sujet ne demande pas de données supplémentaires sur cette relation.
-Le ManyToMany automatique est plus simple et suffisant.
+On utilise `@ManyToMany()` + `@JoinTable()` de TypeORM. La table `exhibition_artworks` est générée automatiquement par la migration.
 
 ---
 
-## 5. Structure des fichiers
+## 10. Tests
+
+```bash
+npm run test       # lance tous les tests
+npm run test:cov   # avec rapport de couverture
+```
+
+| Type | Fichier | Ce qui est testé |
+|------|---------|-----------------|
+| Unitaire | `auth/auth.service.spec.ts` | register (email déjà existant), login (user non trouvé, mauvais password, succès) |
+| Unitaire | `common/guards/role.guard.spec.ts` | pas de rôle requis, bon rôle, mauvais rôle |
+| Intégration | `auth/auth.integration.spec.ts` | POST /auth/login → 401, POST /auth/login → 200 + cookies |
+
+---
+
+## 11. Structure des fichiers
 
 ```
 src/
 ├── common/
-│   ├── enums/
-│   │   └── index.ts              ← tous les enums centralisés
-│   └── value-objects/
-│       └── dimensions.vo.ts      ← Value Object Dimensions
-└── entities/
-    ├── index.ts                  ← barrel export
-    ├── user.entity.ts
-    ├── artist.entity.ts
-    ├── artwork.entity.ts
-    ├── artwork-status-history.entity.ts
-    ├── sale.entity.ts
-    ├── exhibition.entity.ts
-    └── loan.entity.ts
+│   ├── config/
+│   │   ├── configurations/      ← app.config.ts, database.config.ts, jwt.config.ts
+│   │   ├── validations/         ← env.validation.ts (validation au démarrage)
+│   │   └── config.module.ts
+│   ├── decorators/              ← @Public(), @Roles(), @CurrentUser()
+│   ├── enums/                   ← tous les enums centralisés
+│   ├── filters/                 ← GlobalExceptionFilter
+│   ├── guards/                  ← JwtGuard, RoleGuard
+│   ├── interceptors/            ← LoggingInterceptor, ResponseInterceptor
+│   ├── pipes/                   ← NormalizeEmailPipe
+│   └── value-objects/           ← Dimensions (JSONB)
+├── entities/                    ← toutes les entités TypeORM (barrel export via index.ts)
+├── auth/                        ← register, login, refresh, logout
+│   ├── strategy/                ← JwtStrategy (lit le cookie accessToken)
+│   ├── type/                    ← JwtPayload, UserType
+│   └── dto/                     ← CreateUserDTO, LoginDTO
+├── users/                       ← findByEmail, findById, create, updateRefreshToken
+└── logs/
+    ├── .gitkeep                 ← dossier versionné
+    └── requests.log             ← créé automatiquement, ignoré par Git
 ```
-### Connection BDD - 13/07/2026
 
-La connetion de la BDD se fait dans le **App.module.ts**. 
+---
 
-donc pour faire la connexion on utilise Le module **TypeOrmModule** avec la méthode **forRootAsync** qui va permettre de charger une configuration de façon asynchrone. On injecte d'abord configModule pour vérifier si les variables d'environement sont bien chargées et ensuite on utilise **useFactory** qui va retourner la configuration de la base de donnée, Elle utilise les options suivant : 
+## 12. Variables d'environnement
 
-- **type** : qui définit le type de bdd
-- **les options** pour faire la connection (port, host, username....)
-- **entities** : qui définit les tables à créer dans la bdd, à savoir que même si vous definissait la table dans cette option mais que vous n'avez pas décorer l'entité avec les décorateurs de typeORM (Entity, PrimaryCollumn) celle-ci ne sera pas créer dans la bdd donc il faudra décorer vos entités selon vos besoins. 
-- **Synchronize** : qui va permette de synchroniser votre bdd avec vos entités à chaque fois que vous lancé votre projet (A NE PAS UTILISER EN PROD).
-- **logging** : permet de logger les requete sql effectuer sur la bdd dans le terminal.    
+Voir `.env.example` pour la liste complète. Les variables sont validées au démarrage — l'app refuse de lancer si une variable obligatoire est manquante.
+
+| Variable | Obligatoire | Défaut | Description |
+|----------|-------------|--------|-------------|
+| `NODE_ENV` | Non | `development` | Environnement |
+| `PORT` | Non | `3000` | Port de l'API |
+| `DB_HOST` | Oui | — | Host PostgreSQL |
+| `DB_PORT` | Non | `5432` | Port PostgreSQL |
+| `DB_USERNAME` | Oui | — | Utilisateur PostgreSQL |
+| `DB_PASSWORD` | Oui | — | Mot de passe PostgreSQL |
+| `DB_DATABASE` | Oui | — | Nom de la base de données |
+| `JWT_SECRET` | Oui | — | Secret pour les access tokens |
+| `JWT_EXPIRES_IN` | Non | `15m` | Durée des access tokens |
+| `JWT_REFRESH_SECRET` | Oui | — | Secret pour les refresh tokens |
+| `JWT_REFRESH_EXPIRES_IN` | Non | `7d` | Durée des refresh tokens |
