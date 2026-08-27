@@ -1,12 +1,14 @@
 import { ArtworkStatus, ArtworkTechnics } from '../common/enum';
 import { Dimensions } from '../common/value-object';
 import { Artist } from './artist-entity';
+import { ArtworkStatusHistory } from './artworkStatusHistory-entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
   ManyToOne,
   JoinColumn,
   Index,
@@ -64,4 +66,7 @@ export class Artwork {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  @OneToMany(() => ArtworkStatusHistory, (history) => history.artwork) 
+  statusHistories!: ArtworkStatusHistory[];
 }

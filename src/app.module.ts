@@ -19,6 +19,7 @@ import { RoleGuard } from './common/guards/role.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { ArtistsModule } from './artists/artists.module';
+import { ArtworksModule } from './artworks/artworks.module';
 
 
 @Module({
@@ -41,6 +42,7 @@ import { ArtistsModule } from './artists/artists.module';
     AuthModule,
     UsersModule,
     ArtistsModule,
+    ArtworksModule,
   ],
   providers : [
     // on définit ici les guards à cause des injections de dépendances
