@@ -18,6 +18,7 @@ import { JwtGuard } from './common/guards/jwt.guard';
 import { RoleGuard } from './common/guards/role.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { ArtistsModule } from './artists/artists.module';
 
 
 @Module({
@@ -39,6 +40,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     }),
     AuthModule,
     UsersModule,
+    ArtistsModule,
   ],
   providers : [
     // on définit ici les guards à cause des injections de dépendances
