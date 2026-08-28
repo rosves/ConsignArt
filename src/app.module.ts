@@ -19,6 +19,7 @@ import { RoleGuard } from './common/guards/role.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { SalesModule } from './sales/sales.module';
+import { ReportsModule } from './reports/reports.module';
 
 
 @Module({
@@ -41,6 +42,7 @@ import { SalesModule } from './sales/sales.module';
     AuthModule,
     UsersModule,
     SalesModule,
+    ReportsModule,
   ],
   providers : [
     // on définit ici les guards à cause des injections de dépendances
