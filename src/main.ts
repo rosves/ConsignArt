@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { GlobalExceptionFilter } from './common/filters/globalException.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { BusinessRuleViolationFilter } from './common/filters/business-rule.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -15,6 +16,7 @@ async function bootstrap() {
       transform: true,
     }),
   );
+  app.useGlobalFilters(new BusinessRuleViolationFilter());
   app.useGlobalFilters(new GlobalExceptionFilter());
 
   const config = new DocumentBuilder()

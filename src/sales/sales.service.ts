@@ -6,6 +6,7 @@ import { Artwork } from '../Entities/artwork-entity';
 import { ArtworkStatus } from '../common/enum';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { ArtworkStatusHistory } from '../Entities/artworkStatusHistory-entity';
+import { BusinessRuleException } from 'src/common/filters/business-rule.exception';
 
 @Injectable()
 export class SalesService {
@@ -40,11 +41,12 @@ export class SalesService {
             throw new NotFoundException(`Artwork ${dto.artworkId} not found`);
         }
         if (artwork.status !== ArtworkStatus.AVAILABLE) {
-            throw new BadRequestException('Artwork is not available for sale');
+            throw new BusinessRuleException('Artwork is not available for sale');
+
         }
 
         if (dto.salePrice < artwork.reservePrice) {
-            throw new BadRequestException('Sale price is below reserve price');
+            throw new BusinessRuleException('Sale price is below reserve price');
         }
         // 2. Calculer commission
         const commissionRate = this.calculateCommissionRate(dto.salePrice);
