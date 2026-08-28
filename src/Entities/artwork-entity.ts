@@ -2,6 +2,8 @@ import { ArtworkStatus, ArtworkTechnics } from '../common/enum';
 import { Dimensions } from '../common/value-object';
 import { Artist } from './artist-entity';
 import { ArtworkStatusHistory } from './artworkStatusHistory-entity';
+import { Exhibition } from './exhibition-entity';
+import { Loan } from './loan-entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -10,6 +12,7 @@ import {
   UpdateDateColumn,
   OneToMany,
   ManyToOne,
+  ManyToMany,
   JoinColumn,
   Index,
 } from 'typeorm';
@@ -69,4 +72,10 @@ export class Artwork {
 
   @OneToMany(() => ArtworkStatusHistory, (history) => history.artwork) 
   statusHistories!: ArtworkStatusHistory[];
+
+  @ManyToMany(() => Exhibition, (exhibition) => exhibition.artworks)
+  exhibitions!: Exhibition[];
+
+  @OneToMany(() => Loan, (loan) => loan.artwork)
+  loans!: Loan[];
 }
