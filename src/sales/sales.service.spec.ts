@@ -28,6 +28,7 @@ describe('SalesService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
   describe('calculateCommissionRate', () => {
     it('should return 40% for price <= 500000', () => {
       expect((service as any).calculateCommissionRate(500000)).toBe(40);

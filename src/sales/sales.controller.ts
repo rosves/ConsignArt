@@ -3,14 +3,15 @@ import { SalesService } from './sales.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { Roles } from '../common/decorators/role.decorator';
 import { UserRole } from '../common/enum';
+import { SalePriceValidationPipe } from './pipes/sale-price-validation.pipe';
 
-@Controller('sales')
+ @Controller('sales')
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
   @Post()
   @Roles(UserRole.GALLERY)
-  create(@Body() dto: CreateSaleDto) {
+  create(@Body(SalePriceValidationPipe) dto: CreateSaleDto) {
     return this.salesService.create(dto);
   }
 }
