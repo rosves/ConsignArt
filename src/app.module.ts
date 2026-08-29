@@ -21,6 +21,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { ArtistsModule } from './artists/artists.module';
 import { ArtworksModule } from './artworks/artworks.module';
 import { ExhibitionsModule } from './exhibitions/exhibitions.module';
+import { SalesModule } from './sales/sales.module';
 
 
 @Module({
@@ -45,6 +46,7 @@ import { ExhibitionsModule } from './exhibitions/exhibitions.module';
     ArtistsModule,
     ArtworksModule,
     ExhibitionsModule,
+    SalesModule,
   ],
   providers : [
     // on définit ici les guards à cause des injections de dépendances
