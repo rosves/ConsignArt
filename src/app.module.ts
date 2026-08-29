@@ -18,6 +18,9 @@ import { JwtGuard } from './common/guards/jwt.guard';
 import { RoleGuard } from './common/guards/role.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { ArtistsModule } from './artists/artists.module';
+import { ArtworksModule } from './artworks/artworks.module';
+import { ExhibitionsModule } from './exhibitions/exhibitions.module';
 import { SalesModule } from './sales/sales.module';
 
 
@@ -40,6 +43,9 @@ import { SalesModule } from './sales/sales.module';
     }),
     AuthModule,
     UsersModule,
+    ArtistsModule,
+    ArtworksModule,
+    ExhibitionsModule,
     SalesModule,
   ],
   providers : [

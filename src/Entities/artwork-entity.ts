@@ -1,19 +1,81 @@
 import { ArtworkStatus, ArtworkTechnics } from '../common/enum';
 import { Dimensions } from '../common/value-object';
+import { Artist } from './artist-entity';
+import { ArtworkStatusHistory } from './artworkStatusHistory-entity';
+import { Exhibition } from './exhibition-entity';
+import { Loan } from './loan-entity';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+  ManyToOne,
+  ManyToMany,
+  JoinColumn,
+  Index,
+} from 'typeorm';
 
+@Entity('artworks')
 export class Artwork {
-    id: string;
-    title: string;
-    description: string | null;
-    creationYear: number;
-    technic: ArtworkTechnics;
-    dimensions: Dimensions | null; 
-    sellPrice: number;             
-    reservePrice: number;          
-    status: ArtworkStatus;
-    imageURL: string | null;
-    consignedAt: Date;
-    artistId: string;             
-    createdAt: Date;
-    updatedAt: Date;
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  title!: string;
+
+  @Column({ type: 'text', nullable: true })
+  description!: string | null;
+
+  @Column({ type: 'int' })
+  creationYear!: number;
+
+  @Column({ type: 'enum', enum: ArtworkTechnics })
+  technic!: ArtworkTechnics;
+
+  @Column({ type: 'jsonb', nullable: true })
+  dimensions!: Dimensions | null;
+
+  @Column({ type: 'int', comment: 'Price in cents' })
+  sellPrice!: number;
+
+  @Column({ type: 'int', comment: 'Reserve price in cents' })
+  reservePrice!: number;
+
+  @Index('idx_artworks_status')
+  @Column({
+    type: 'enum',
+    enum: ArtworkStatus,
+    default: ArtworkStatus.AVAILABLE,
+  })
+  status!: ArtworkStatus;
+
+  @Column({ type: 'varchar', nullable: true })
+  imageURL!: string | null;
+
+  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
+  consignedAt!: Date;
+
+  @Column({ type: 'uuid' })
+  artistId!: string;
+
+  @ManyToOne(() => Artist, (artist) => artist.artworks, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'artistId' })
+  artist!: Artist;
+
+  @CreateDateColumn()
+  createdAt!: Date;
+
+  @UpdateDateColumn()
+  updatedAt!: Date;
+
+  @OneToMany(() => ArtworkStatusHistory, (history) => history.artwork) 
+  statusHistories!: ArtworkStatusHistory[];
+
+  @ManyToMany(() => Exhibition, (exhibition) => exhibition.artworks)
+  exhibitions!: Exhibition[];
+
+  @OneToMany(() => Loan, (loan) => loan.artwork)
+  loans!: Loan[];
 }
