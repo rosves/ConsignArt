@@ -1,5 +1,5 @@
 import { UserRole } from "src/common/enum";
-import { IsEmail, IsNotEmpty, IsEnum, IsString } from "class-validator"
+import { IsEmail, IsNotEmpty, IsIn, IsString } from "class-validator"
 
 export class CreateUserDTO {
     @IsEmail()
@@ -13,6 +13,6 @@ export class CreateUserDTO {
     @IsNotEmpty()
     @IsString()
     lastName!: string;
-    @IsEnum(UserRole)
+    @IsIn([UserRole.ARTIST,UserRole.COLLECTOR, UserRole.GALLERY])
     role!: UserRole;
 }
