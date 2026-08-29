@@ -121,4 +121,17 @@ describe('ArtworksService', () => {
       expect(result.status).toBe(ArtworkStatus.RETURNED);
     });
   });
+
+  describe('remove (Suppression / Delete)', () => {
+    it('should remove an existing artwork', async () => {
+      const result = await service.remove('artwork-uuid-1');
+
+      expect(mockArtworkRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'artwork-uuid-1' },
+        relations: { artist: true, statusHistories: true },
+      });
+      expect(mockArtworkRepo.remove).toHaveBeenCalled();
+      expect(result.message).toContain('successfully removed');
+    });
+  });
 });
