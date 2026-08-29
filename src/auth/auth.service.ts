@@ -82,7 +82,8 @@ export class AuthService {
             password : hashedPassword,
             firstName : dto.firstName,
             lastName : dto.lastName,
-            role : dto.role
+            role : dto.role,
+            isActive : dto.role !== UserRole.GALLERY
         })
 
         const { accessToken, refreshToken } = await this.generateTokens(user.id,user.role);

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/Entities';
 import { Repository } from 'typeorm';
-import { CreateUserDTO } from './dto/createUserDTO';
+import { CreateUserInternalDTO } from './dto/createUserInternalDTO';
 
 @Injectable()
 export class UsersService {
@@ -21,7 +21,7 @@ export class UsersService {
     return user;
   }
 
-  public async create( userInfo : CreateUserDTO ) : Promise<User> { 
+  public async create( userInfo : CreateUserInternalDTO ) : Promise<User> { 
     const user = this.userRepository.create(userInfo);
     await this.userRepository.save(user);
     return user;
@@ -29,6 +29,10 @@ export class UsersService {
 
   public async updateRefreshToken(userId : string, refreshToken : string ) : Promise<void> { 
     await this.userRepository.update(userId, { hashedRefreshToken : refreshToken });
+  }
+
+  public async ActiveGalleryAccount(userId : string) : Promise<void> {
+    const user = await this.userRepository.update(userId, { isActive : true });
   }
 
   public async resetRefreshToken(userId : string) : Promise<void> { 
