@@ -37,11 +37,11 @@ export class Sale {
     @CreateDateColumn()
     createdAt!: Date;
 
-    // @ManyToOne(() => Artwork)
-    // @JoinColumn({ name: 'artworkId' })
-    // artwork!: Artwork;
+     @ManyToOne(() => Artwork)
+     @JoinColumn({ name: 'artworkId' })
+     artwork!: Artwork;
 
-    // @ManyToOne(() => User)
-    // @JoinColumn({ name: 'buyerId' })
-    // buyer!: User;
+     @ManyToOne(() => User)
+     @JoinColumn({ name: 'buyerId' })
+     buyer!: User;
 }
