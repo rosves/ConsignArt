@@ -47,6 +47,8 @@ docker compose up --build
 - API disponible sur `http://localhost:3000/api/v1`
 - Adminer (interface BDD) disponible sur `http://localhost:8080`
 
+> ⚠️ Le compte `ADMIN` ne peut pas s'inscrire via l'API. Il doit être créé directement en base avec `role = admin` et `isActive = true` via Adminer.
+
 ---
 
 ## 3. Authentification
@@ -73,7 +75,10 @@ POST /api/v1/auth/register
 }
 ```
 
-> ⚠️ Les comptes `GALLERY` ont `isActive = false` par défaut. Un `ADMIN` doit les valider avant qu'ils puissent accéder à la plateforme. Le rôle `ADMIN` ne peut pas s'inscrire via cette route.
+> ⚠️ Rôles acceptés à l'inscription : `gallery`, `artist`, `collector`. Le rôle `admin` est bloqué.
+> ⚠️ Les comptes `GALLERY` ont `isActive = false` à la création — un `ADMIN` doit les valider.
+> ✅ Les comptes `ARTIST` et `COLLECTOR` sont actifs immédiatement.
+> ✅ L'email est automatiquement normalisé en minuscule via `NormalizeEmailPipe`.
 
 ### Fonctionnement des tokens JWT
 
@@ -102,7 +107,30 @@ getProfile(@CurrentUser() user: UserType) {
 
 ---
 
-## 4. Format des réponses
+## 4. Administration
+
+### Routes disponibles
+
+| Méthode | Route | Accès | Description |
+|---------|-------|-------|-------------|
+| POST | `/api/v1/admin/users/:id/activate` | ADMIN | Activer un compte galerie |
+
+### Activer un compte galerie
+
+Un compte `GALLERY` est inactif à sa création. Un `ADMIN` doit l'activer manuellement.
+
+```
+POST /api/v1/admin/users/32814a22-d6d6-4c7e-8a91-a3ce3a222604/activate
+```
+
+Règles :
+- L'utilisateur doit exister → sinon `404 Not Found`
+- L'utilisateur doit avoir le rôle `GALLERY` → sinon `400 Bad Request`
+- Le compte ne doit pas être déjà actif → sinon `400 Bad Request`
+
+---
+
+## 5. Format des réponses
 
 Toutes les réponses sont formatées de façon uniforme par le `ResponseInterceptor`.
 
@@ -130,12 +158,12 @@ Toutes les réponses sont formatées de façon uniforme par le `ResponseIntercep
 
 ---
 
-## 5. Logging
+## 6. Logging
 
 Chaque requête (succès et erreur) est automatiquement enregistrée par le `LoggingInterceptor`.
 
 **Fichier de log** : `logs/requests.log` à la racine du projet.
-- Le dossier `logs/` est créé automatiquement au démarrage si il n'existe pas.
+- Le dossier `logs/` est créé automatiquement au démarrage s'il n'existe pas.
 - Les fichiers `.log` sont ignorés par Git (`.gitignore`), seul le dossier est versionné via `.gitkeep`.
 
 **Format des logs :**
@@ -146,7 +174,7 @@ Chaque requête (succès et erreur) est automatiquement enregistrée par le `Log
 
 ---
 
-## 6. Connexion à la base de données
+## 7. Connexion à la base de données
 
 La connexion se fait dans `app.module.ts` via `TypeOrmModule.forRootAsync`.
 
@@ -173,7 +201,7 @@ La validation des variables est faite au démarrage dans `src/common/config/vali
 
 ---
 
-## 7. Règles métier
+## 8. Règles métier
 
 ### Utilisateurs
 
@@ -182,6 +210,7 @@ La validation des variables est faite au démarrage dans `src/common/config/vali
 - Les autres rôles (`ARTIST`, `COLLECTOR`) sont actifs dès l'inscription.
 - Les mots de passe sont hashés avec **bcrypt** — jamais stockés en clair.
 - L'email est **normalisé en minuscule** automatiquement via `NormalizeEmailPipe`.
+- Le rôle `ADMIN` ne peut pas être créé via l'API — uniquement directement en base.
 
 ### Artistes
 
@@ -243,7 +272,7 @@ Une vente se fait dans une **transaction TypeORM** :
 
 ---
 
-## 8. Les entités
+## 9. Les entités
 
 ### Vue d'ensemble des relations
 
@@ -269,7 +298,7 @@ User (COLLECTOR) ──< Sale ──> Artwork
 | `firstName` | varchar | prénom |
 | `lastName` | varchar | nom |
 | `role` | enum | ADMIN / GALLERY / ARTIST / COLLECTOR |
-| `isActive` | boolean (false) | false par défaut, validation admin pour GALLERY |
+| `isActive` | boolean (false) | false par défaut pour GALLERY, true pour les autres |
 | `hashedRefreshToken` | varchar nullable | refresh token haché, null après logout |
 | `createdAt` | timestamp | |
 | `updatedAt` | timestamp | |
@@ -285,7 +314,7 @@ User (COLLECTOR) ──< Sale ──> Artwork
 | `nationality` | varchar nullable | |
 | `enterAt` | date | date d'entrée dans la galerie actuelle |
 | `status` | enum | ACTIVE / INACTIVE |
-| `galleryId` | uuid (FK → User) | galerie qui gère cet artiste (nullable) |
+| `galleryId` | uuid nullable (FK → User) | galerie qui gère cet artiste |
 | `userAccountId` | uuid nullable (FK → User) | compte de connexion optionnel |
 
 ### `Artwork` — L'œuvre d'art
@@ -335,7 +364,7 @@ Table **immuable** : pas d'`updatedAt`. Une vente ne se modifie jamais.
 
 ---
 
-## 9. Choix techniques importants
+## 10. Choix techniques importants
 
 ### UUID pour tous les IDs
 Non-prédictible, non-énumérable. Un entier expose le volume et permet l'énumération des ressources.
@@ -356,9 +385,13 @@ Conversion en euros uniquement à l'affichage (`valeur / 100`).
 ### ManyToMany automatique pour Exhibition ↔ Artwork
 On utilise `@ManyToMany()` + `@JoinTable()` de TypeORM. La table `exhibition_artworks` est générée automatiquement par la migration.
 
+### Séparation DTO public / DTO interne
+- `CreateUserDTO` → données saisies par l'utilisateur via l'API (email, password, firstName, lastName, role)
+- `CreateUserInternalDTO` → étend `CreateUserDTO` avec les champs système (`isActive`) — utilisé uniquement en interne dans les services
+
 ---
 
-## 10. Tests
+## 11. Tests
 
 ```bash
 npm run test       # lance tous les tests
@@ -373,7 +406,7 @@ npm run test:cov   # avec rapport de couverture
 
 ---
 
-## 11. Structure des fichiers
+## 12. Structure des fichiers
 
 ```
 src/
@@ -395,6 +428,8 @@ src/
 │   ├── type/                    ← JwtPayload, UserType
 │   └── dto/                     ← CreateUserDTO, LoginDTO
 ├── users/                       ← findByEmail, findById, create, updateRefreshToken
+│   └── dto/                     ← CreateUserDTO, CreateUserInternalDTO
+├── admin/                       ← activation des comptes galerie
 └── logs/
     ├── .gitkeep                 ← dossier versionné
     └── requests.log             ← créé automatiquement, ignoré par Git
@@ -402,7 +437,7 @@ src/
 
 ---
 
-## 12. Variables d'environnement
+## 13. Variables d'environnement
 
 Voir `.env.example` pour la liste complète. Les variables sont validées au démarrage — l'app refuse de lancer si une variable obligatoire est manquante.
 

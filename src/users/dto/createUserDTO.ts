@@ -15,4 +15,5 @@ export class CreateUserDTO {
     lastName!: string;
     @IsIn([UserRole.ARTIST,UserRole.COLLECTOR, UserRole.GALLERY])
     role!: UserRole;
+    
 }

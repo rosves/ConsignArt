@@ -22,6 +22,7 @@ import { ArtistsModule } from './artists/artists.module';
 import { ArtworksModule } from './artworks/artworks.module';
 import { ExhibitionsModule } from './exhibitions/exhibitions.module';
 import { SalesModule } from './sales/sales.module';
+import { AdminModule } from './admin/admin.module';
 
 
 @Module({
@@ -47,6 +48,7 @@ import { SalesModule } from './sales/sales.module';
     ArtworksModule,
     ExhibitionsModule,
     SalesModule,
+    AdminModule,
   ],
   providers : [
     // on définit ici les guards à cause des injections de dépendances
