@@ -1,9 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { User } from '../common/decorators/user.decorator';
 import { Roles } from '../common/decorators/role.decorator';
 import { UserRole } from '../common/enum';
 
+@ApiTags('reports')
 @Controller('reports')
 export class ReportsController {
     constructor(private readonly reportsService: ReportsService) { }
