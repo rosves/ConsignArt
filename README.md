@@ -2,6 +2,26 @@
 
 ---
 
+## Sommaire
+
+1. [Résumé du projet](#1-résumé-du-projet)
+2. [Lancement du projet](#2-lancement-du-projet)
+3. [Authentification](#3-authentification)
+4. [Administration](#4-administration)
+5. [Ventes](#5-ventes)
+6. [Rapports](#6-rapports)
+7. [Format des réponses](#7-format-des-réponses)
+8. [Logging](#8-logging)
+9. [Connexion à la base de données](#9-connexion-à-la-base-de-données)
+10. [Règles métier](#10-règles-métier)
+11. [Les entités](#11-les-entités)
+12. [Choix techniques importants](#12-choix-techniques-importants)
+13. [Tests](#13-tests)
+14. [Structure des fichiers](#14-structure-des-fichiers)
+15. [Variables d'environnement](#15-variables-denvironnement)
+
+---
+
 ## 1. Résumé du projet
 
 ConsignArt est une API REST B2B destinée aux galeries d'art contemporain
@@ -130,7 +150,115 @@ Règles :
 
 ---
 
-## 5. Format des réponses
+## 5. Ventes
+
+### Routes disponibles
+
+| Méthode | Route | Accès | Description |
+|---------|-------|-------|-------------|
+| POST | `/api/v1/sales` | GALLERY | Créer un contrat de vente |
+
+### Créer une vente
+
+```json
+POST /api/v1/sales
+{
+  "artworkId": "uuid-de-l-oeuvre",
+  "buyerId": "uuid-du-collectionneur",
+  "salePrice": 1000000
+}
+```
+
+> ⚠️ `salePrice` est en **centimes** (1 000 000 = 10 000€).
+> ⚠️ Seule une `GALLERY` peut créer une vente.
+
+Règles métier appliquées :
+- L'œuvre doit exister → sinon `404 Not Found`
+- L'œuvre doit être au statut `AVAILABLE` → sinon `422 Unprocessable Entity`
+- Le prix de vente doit être ≥ au prix de réserve → sinon `422 Unprocessable Entity`
+- Le prix de vente doit être > 0 → sinon `400 Bad Request` (via `SalePriceValidationPipe`)
+
+La vente se fait dans une **transaction TypeORM atomique** :
+1. Créer la `Sale` avec commission calculée
+2. Passer l'`Artwork` en `SOLD`
+3. Créer un `ArtworkStatusHistory`
+→ Si une étape échoue, tout est annulé (rollback)
+
+### Calcul de la commission
+
+```
+Prix ≤ 5 000€            → commission = 40%
+5 000€ < prix ≤ 20 000€  → commission = 35%
+Prix > 20 000€           → commission = 30%
+
+Montant artiste = prix de vente - commission
+```
+
+### BusinessRuleViolationFilter
+
+Les violations de règles métier (prix sous le prix de réserve, œuvre non disponible) sont gérées par `BusinessRuleViolationFilter` — un filtre NestJS personnalisé qui attrape les `BusinessRuleException` et retourne une réponse formatée avec le code HTTP `422 Unprocessable Entity`.
+
+```json
+{
+  "statusCode": 422,
+  "message": "Sale price is below reserve price",
+  "timestamp": "2026-08-30T01:00:00Z"
+}
+```
+
+---
+
+## 6. Rapports
+
+### Routes disponibles
+
+| Méthode | Route | Accès | Description |
+|---------|-------|-------|-------------|
+| GET | `/api/v1/reports/artist` | ARTIST | Stats de l'artiste connecté |
+| GET | `/api/v1/reports/gallery` | GALLERY | Stats de la galerie connectée |
+| GET | `/api/v1/reports/admin` | ADMIN | Stats globales de la plateforme |
+
+### Stats artiste
+
+```json
+GET /api/v1/reports/artist
+{
+  "totalSales": 2000000,
+  "totalCommissions": 700000,
+  "salesCount": 3,
+  "availableArtworks": 12
+}
+```
+
+### Stats galerie
+
+```json
+GET /api/v1/reports/gallery
+{
+  "salesStats": [
+    { "month": "2026-08-01T00:00:00Z", "totalRevenue": "5000000", "totalSales": "3" }
+  ],
+  "topArtists": [
+    { "artistId": "uuid", "firstName": "Jean", "lastName": "Dupont", "totalSales": "3000000" }
+  ]
+}
+```
+
+### Stats admin
+
+```json
+GET /api/v1/reports/admin
+{
+  "activeUsers": 42,
+  "totalTransactions": 150,
+  "totalVolume": 50000000,
+  "totalCommissions": 17500000
+}
+```
+
+---
+
+## 7. Format des réponses
 
 Toutes les réponses sont formatées de façon uniforme par le `ResponseInterceptor`.
 
@@ -158,7 +286,7 @@ Toutes les réponses sont formatées de façon uniforme par le `ResponseIntercep
 
 ---
 
-## 6. Logging
+## 8. Logging
 
 Chaque requête (succès et erreur) est automatiquement enregistrée par le `LoggingInterceptor`.
 
@@ -174,7 +302,7 @@ Chaque requête (succès et erreur) est automatiquement enregistrée par le `Log
 
 ---
 
-## 7. Connexion à la base de données
+## 9. Connexion à la base de données
 
 La connexion se fait dans `app.module.ts` via `TypeOrmModule.forRootAsync`.
 
@@ -186,6 +314,16 @@ Options clés :
 - **`entities`** : liste des entités TypeORM → définit les tables à créer. ⚠️ Une entité doit être décorée avec `@Entity()` et `@PrimaryGeneratedColumn()` pour que la table soit créée en base.
 - **`synchronize: true`** : synchronise automatiquement la BDD avec les entités au démarrage. ⚠️ **Ne jamais utiliser en production** — utiliser les migrations à la place.
 - **`logging: true`** : affiche toutes les requêtes SQL dans le terminal (dev uniquement).
+
+### Migrations
+
+Les migrations TypeORM sont configurées dans `src/database/data-source.ts`.
+
+```bash
+npm run migration:generate src/database/migrations/<NomMigration>  # générer
+npm run migration:run                                               # appliquer
+npm run migration:revert                                            # annuler
+```
 
 ### Configuration des variables d'environnement
 
@@ -201,7 +339,7 @@ La validation des variables est faite au démarrage dans `src/common/config/vali
 
 ---
 
-## 8. Règles métier
+## 10. Règles métier
 
 ### Utilisateurs
 
@@ -272,7 +410,7 @@ Une vente se fait dans une **transaction TypeORM** :
 
 ---
 
-## 9. Les entités
+## 11. Les entités
 
 ### Vue d'ensemble des relations
 
@@ -364,7 +502,7 @@ Table **immuable** : pas d'`updatedAt`. Une vente ne se modifie jamais.
 
 ---
 
-## 10. Choix techniques importants
+## 12. Choix techniques importants
 
 ### UUID pour tous les IDs
 Non-prédictible, non-énumérable. Un entier expose le volume et permet l'énumération des ressources.
@@ -389,9 +527,15 @@ On utilise `@ManyToMany()` + `@JoinTable()` de TypeORM. La table `exhibition_art
 - `CreateUserDTO` → données saisies par l'utilisateur via l'API (email, password, firstName, lastName, role)
 - `CreateUserInternalDTO` → étend `CreateUserDTO` avec les champs système (`isActive`) — utilisé uniquement en interne dans les services
 
+### Transaction atomique pour les ventes
+La vente d'une œuvre utilise `EntityManager.transaction()` de TypeORM. Les 3 opérations (créer `Sale`, passer `Artwork` en `SOLD`, créer `ArtworkStatusHistory`) sont atomiques — si l'une échoue, toutes sont annulées (rollback).
+
+### BusinessRuleViolationFilter
+Sépare les erreurs métier (`422`) des erreurs de validation DTO (`400`). Permet un traitement différencié des deux types d'erreur côté client.
+
 ---
 
-## 11. Tests
+## 13. Tests
 
 ```bash
 npm run test       # lance tous les tests
@@ -403,10 +547,13 @@ npm run test:cov   # avec rapport de couverture
 | Unitaire | `auth/auth.service.spec.ts` | register (email déjà existant), login (user non trouvé, mauvais password, succès) |
 | Unitaire | `common/guards/role.guard.spec.ts` | pas de rôle requis, bon rôle, mauvais rôle |
 | Intégration | `auth/auth.integration.spec.ts` | POST /auth/login → 401, POST /auth/login → 200 + cookies |
+| Unitaire | `sales/sales.service.spec.ts` | calcul commission (40/35/30%), montant artiste |
+| Unitaire | `sales/pipes/sale-price-validation.pipe.spec.ts` | validation prix > 0 |
+| Intégration | `sales/sales.integration.spec.ts` | POST /sales → 201, POST /sales → 400 |
 
 ---
 
-## 12. Structure des fichiers
+## 14. Structure des fichiers
 
 ```
 src/
@@ -417,10 +564,10 @@ src/
 │   │   └── config.module.ts
 │   ├── decorators/              ← @Public(), @Roles(), @CurrentUser()
 │   ├── enums/                   ← tous les enums centralisés
-│   ├── filters/                 ← GlobalExceptionFilter
+│   ├── filters/                 ← GlobalExceptionFilter, BusinessRuleViolationFilter
 │   ├── guards/                  ← JwtGuard, RoleGuard
 │   ├── interceptors/            ← LoggingInterceptor, ResponseInterceptor
-│   ├── pipes/                   ← NormalizeEmailPipe
+│   ├── pipes/                   ← NormalizeEmailPipe, SalePriceValidationPipe
 │   └── value-objects/           ← Dimensions (JSONB)
 ├── entities/                    ← toutes les entités TypeORM (barrel export via index.ts)
 ├── auth/                        ← register, login, refresh, logout
@@ -430,6 +577,13 @@ src/
 ├── users/                       ← findByEmail, findById, create, updateRefreshToken
 │   └── dto/                     ← CreateUserDTO, CreateUserInternalDTO
 ├── admin/                       ← activation des comptes galerie
+├── sales/                       ← contrat de vente, commission, transaction
+│   ├── dto/                     ← CreateSaleDto
+│   └── pipes/                   ← SalePriceValidationPipe
+├── reports/                     ← stats galerie, artiste, admin
+├── database/
+│   ├── data-source.ts           ← config TypeORM CLI pour migrations
+│   └── migrations/              ← InitialSchema
 └── logs/
     ├── .gitkeep                 ← dossier versionné
     └── requests.log             ← créé automatiquement, ignoré par Git
@@ -437,7 +591,7 @@ src/
 
 ---
 
-## 13. Variables d'environnement
+## 15. Variables d'environnement
 
 Voir `.env.example` pour la liste complète. Les variables sont validées au démarrage — l'app refuse de lancer si une variable obligatoire est manquante.
 
