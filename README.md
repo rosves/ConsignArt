@@ -8,30 +8,31 @@
 2. [Lancement du projet](#2-lancement-du-projet)
 3. [Authentification](#3-authentification)
 4. [Administration](#4-administration)
-5. [Ventes](#5-ventes)
-6. [Rapports](#6-rapports)
-7. [Format des réponses](#7-format-des-réponses)
-8. [Logging](#8-logging)
-9. [Connexion à la base de données](#9-connexion-à-la-base-de-données)
-10. [Règles métier](#10-règles-métier)
-11. [Les entités](#11-les-entités)
-12. [Choix techniques importants](#12-choix-techniques-importants)
-13. [Tests](#13-tests)
-14. [Structure des fichiers](#14-structure-des-fichiers)
-15. [Variables d'environnement](#15-variables-denvironnement)
+5. [Artistes](#5-artistes)
+6. [Œuvres](#6-œuvres)
+7. [Expositions & Prêts](#7-expositions--prêts)
+8. [Ventes](#8-ventes)
+9. [Rapports](#9-rapports)
+10. [Format des réponses](#10-format-des-réponses)
+11. [Logging](#11-logging)
+12. [Connexion à la base de données](#12-connexion-à-la-base-de-données)
+13. [Règles métier](#13-règles-métier)
+14. [Les entités](#14-les-entités)
+15. [Choix techniques importants](#15-choix-techniques-importants)
+16. [Tests](#16-tests)
+17. [Structure des fichiers](#17-structure-des-fichiers)
+18. [Variables d'environnement](#18-variables-denvironnement)
+19. [Guide Swagger — Exemples de Payloads JSON](#19-guide-swagger--exemples-de-payloads-json-pour-chaque-route)
 
 ---
 
 ## 1. Résumé du projet
 
-ConsignArt est une API REST B2B destinée aux galeries d'art contemporain
-pour gérer la **consignation d'œuvres d'art**.
+ConsignArt est une API REST B2B destinée aux galeries d'art contemporain pour gérer la **consignation d'œuvres d'art**.
 
 ### Le métier de la consignation
 
-Un artiste confie une ou plusieurs œuvres à une galerie. La galerie expose
-et vend ces œuvres pour le compte de l'artiste. Sur chaque vente, la galerie
-prélève une commission et reverse le solde à l'artiste.
+Un artiste confie une ou plusieurs œuvres à une galerie. La galerie expose et vend ces œuvres pour le compte de l'artiste. Sur chaque vente, la galerie prélève une commission et reverse le solde à l'artiste.
 
 ### Stack technique
 
@@ -47,8 +48,8 @@ prélève une commission et reverse le solde à l'artiste.
 
 | Rôle | Description |
 |------|-------------|
-| `ADMIN` | Gère la plateforme, valide les comptes galerie, consulte les statistiques globales |
-| `GALLERY` | Enregistre des artistes, dépose des œuvres, organise des expositions, vend |
+| `ADMIN` | Gère la plateforme, valide les comptes galerie, approuve les transferts d'artistes, consulte les statistiques globales |
+| `GALLERY` | Enregistre des artistes, dépose des œuvres, organise des expositions, gère les prêts, vend des œuvres |
 | `ARTIST` | Consulte ses œuvres et ses revenus (compte optionnel) |
 | `COLLECTOR` | Consulte le catalogue et achète des œuvres |
 
@@ -65,6 +66,7 @@ docker compose up --build
 ```
 
 - API disponible sur `http://localhost:3000/api/v1`
+- Documentation Swagger disponible sur `http://localhost:3000/api/docs`
 - Adminer (interface BDD) disponible sur `http://localhost:8080`
 
 > ⚠️ Le compte `ADMIN` ne peut pas s'inscrire via l'API. Il doit être créé directement en base avec `role = admin` et `isActive = true` via Adminer.
@@ -114,6 +116,7 @@ POST /api/v1/auth/register
 - **@Public()** : décorateur à placer sur une route pour la rendre publique (ex: register, login).
 - **RolesGuard** : appliqué **globalement**, vérifie que le rôle de l'utilisateur connecté correspond au(x) rôle(s) requis par la route.
 - **@Roles(UserRole.ADMIN)** : décorateur à placer sur une route pour restreindre l'accès à un ou plusieurs rôles.
+- **OwnershipGuard** : vérifie qu'une œuvre appartient bien à la galerie de l'utilisateur connecté (`GALLERY`) avant modification ou suppression (`ADMIN` contourne la restriction).
 - **@CurrentUser()** : décorateur de paramètre pour accéder à l'utilisateur connecté dans un controller (`req.user`).
 
 ```typescript
@@ -150,7 +153,120 @@ Règles :
 
 ---
 
-## 5. Ventes
+## 5. Artistes
+
+### Routes disponibles
+
+| Méthode | Route | Accès | Description |
+|---------|-------|-------|-------------|
+| POST | `/api/v1/artists` | GALLERY | Créer un artiste |
+| GET | `/api/v1/artists` | Authentifié | Lister les artistes de sa galerie |
+| GET | `/api/v1/artists/:id` | Authentifié | Consulter un artiste par ID |
+| PATCH | `/api/v1/artists/:id` | GALLERY | Modifier un artiste |
+| PATCH | `/api/v1/artists/:id/status` | GALLERY | Changer le statut (ACTIVE / INACTIVE) |
+| POST | `/api/v1/artists/:id/transfer` | ADMIN | Transférer un artiste vers une autre galerie |
+| DELETE | `/api/v1/artists/:id` | GALLERY / ADMIN | Supprimer un artiste |
+
+### Exemple de création d'artiste
+
+```json
+POST /api/v1/artists
+{
+  "firstName": "Claude",
+  "lastName": "Monet",
+  "biography": "Peintre impressionniste français.",
+  "portfolioURL": "https://monet-art.com",
+  "nationality": "Française",
+  "enterAt": "2026-01-15T00:00:00.000Z"
+}
+```
+
+Règles métier :
+- L'artiste est rattaché automatiquement à la galerie de l'utilisateur connecté.
+- Un artiste n'appartient qu'à une seule galerie à la fois.
+- Seul un rôle `ADMIN` peut approuver le transfert d'un artiste vers une nouvelle galerie via `/artists/:id/transfer`.
+
+---
+
+## 6. Œuvres
+
+### Routes disponibles
+
+| Méthode | Route | Accès | Description |
+|---------|-------|-------|-------------|
+| POST | `/api/v1/artworks` | GALLERY / ADMIN | Déposer une œuvre en consignation |
+| GET | `/api/v1/artworks` | Public | Consulter le catalogue (filtre par status/artistId) |
+| GET | `/api/v1/artworks/:id` | Public | Consulter les détails d'une œuvre avec historique |
+| PATCH | `/api/v1/artworks/:id/status` | GALLERY / ADMIN | Changer le statut d'une œuvre |
+| DELETE | `/api/v1/artworks/:id` | GALLERY / ADMIN | Supprimer une œuvre (OwnershipGuard) |
+
+### Exemple de dépôt d'œuvre
+
+```json
+POST /api/v1/artworks
+{
+  "title": "Nymphéas",
+  "description": "Peinture à l'huile sur toile",
+  "creationYear": 1914,
+  "technic": "oil",
+  "dimensions": { "height": 200, "width": 200, "depth": 5 },
+  "sellPrice": 1500000,
+  "reservePrice": 1200000,
+  "artistId": "uuid-de-l-artiste"
+}
+```
+
+> ⚠️ `sellPrice` et `reservePrice` sont en **centimes** (1 500 000 = 15 000€) et `sellPrice >= reservePrice`.
+> ⚠️ Le pipe `MaxActiveArtworksPipe` bloque la création si l'artiste compte déjà **50 œuvres actives** (`AVAILABLE` ou `ON_LOAN`).
+
+### Traçabilité et historique (`ArtworkStatusHistory`)
+
+Chaque changement de statut génère automatiquement une ligne immuable dans `ArtworkStatusHistory` (append-only) :
+```
+AVAILABLE ──→ ON_LOAN   (exposition ou prêt)
+ON_LOAN   ──→ AVAILABLE (fin d'exposition ou retour de prêt)
+AVAILABLE ──→ SOLD      (vente)
+SOLD      ──→ RETURNED  (retour exceptionnel, ADMIN uniquement)
+```
+
+---
+
+## 7. Expositions & Prêts
+
+### Routes disponibles
+
+| Méthode | Route | Accès | Description |
+|---------|-------|-------|-------------|
+| POST | `/api/v1/exhibitions` | GALLERY / ADMIN | Créer une exposition |
+| GET | `/api/v1/exhibitions` | Public | Lister les expositions |
+| GET | `/api/v1/exhibitions/:id` | Public | Consulter une exposition par ID |
+| PATCH | `/api/v1/exhibitions/:id` | GALLERY / ADMIN | Modifier une exposition |
+| POST | `/api/v1/exhibitions/:id/close` | GALLERY / ADMIN | Clôturer une exposition |
+| POST | `/api/v1/exhibitions/loans` | GALLERY / ADMIN | Enregistrer un prêt d'œuvre |
+| POST | `/api/v1/exhibitions/loans/:id/return` | GALLERY / ADMIN | Retourner un prêt |
+
+### Exemple de création d'exposition
+
+```json
+POST /api/v1/exhibitions
+{
+  "name": "Rétrospective Impressionnisme",
+  "startDate": "2026-09-01T00:00:00.000Z",
+  "endDate": "2026-10-31T00:00:00.000Z",
+  "location": "Paris - Grand Palais",
+  "type": "physical",
+  "artworkIds": ["uuid-œuvre-1", "uuid-œuvre-2"]
+}
+```
+
+Fonctionnement métier :
+- Les œuvres sélectionnées doivent être au statut `AVAILABLE`.
+- Lors de la création, les œuvres basculent automatiquement au statut `ON_LOAN` dans une **transaction TypeORM atomique**.
+- Lors de la clôture (`/close`), toutes les œuvres concernées sont automatiquement restituées au statut `AVAILABLE`.
+
+---
+
+## 8. Ventes
 
 ### Routes disponibles
 
@@ -208,7 +324,7 @@ Les violations de règles métier (prix sous le prix de réserve, œuvre non dis
 
 ---
 
-## 6. Rapports
+## 9. Rapports
 
 ### Routes disponibles
 
@@ -258,7 +374,7 @@ GET /api/v1/reports/admin
 
 ---
 
-## 7. Format des réponses
+## 10. Format des réponses
 
 Toutes les réponses sont formatées de façon uniforme par le `ResponseInterceptor`.
 
@@ -286,7 +402,7 @@ Toutes les réponses sont formatées de façon uniforme par le `ResponseIntercep
 
 ---
 
-## 8. Logging
+## 11. Logging
 
 Chaque requête (succès et erreur) est automatiquement enregistrée par le `LoggingInterceptor`.
 
@@ -302,7 +418,7 @@ Chaque requête (succès et erreur) est automatiquement enregistrée par le `Log
 
 ---
 
-## 9. Connexion à la base de données
+## 12. Connexion à la base de données
 
 La connexion se fait dans `app.module.ts` via `TypeOrmModule.forRootAsync`.
 
@@ -339,7 +455,7 @@ La validation des variables est faite au démarrage dans `src/common/config/vali
 
 ---
 
-## 10. Règles métier
+## 13. Règles métier
 
 ### Utilisateurs
 
@@ -356,7 +472,7 @@ La validation des variables est faite au démarrage dans `src/common/config/vali
 - Un artiste peut être **transféré** vers une autre galerie avec l'accord d'un admin
   (on met à jour `galleryId` et `enterAt`).
 - Un artiste ne peut pas avoir plus de **50 œuvres actives** simultanément
-  dans une galerie (vérifié dans un Pipe NestJS).
+  dans une galerie (vérifié dans le pipe `MaxActiveArtworksPipe`).
 
 ### Œuvres
 
@@ -365,6 +481,7 @@ La validation des variables est faite au démarrage dans `src/common/config/vali
 - Une œuvre au statut `ON_LOAN` **ne peut pas être vendue**.
 - Une œuvre au statut `SOLD` **ne peut plus changer de statut**.
 - Tout changement de statut crée un enregistrement dans `ArtworkStatusHistory`.
+- La suppression ou modification d'une œuvre est sécurisée par `OwnershipGuard` qui s'assure qu'elle appartient bien à la galerie connectée.
 
 ```
 AVAILABLE ──→ ON_LOAN   (ajout à une exposition ou prêt)
@@ -392,8 +509,9 @@ Une vente se fait dans une **transaction TypeORM** :
 ### Expositions
 
 - Une exposition doit contenir **au moins une œuvre** à la création.
-- À la création, les œuvres sélectionnées passent en `ON_LOAN`.
+- À la création, les œuvres sélectionnées passent en `ON_LOAN` dans une transaction atomique.
 - Une œuvre `ON_LOAN` **ne peut pas être vendue** pendant l'exposition.
+- À la clôture de l'exposition, toutes les œuvres sont automatiquement restituées au statut `AVAILABLE`.
 
 ### Prêts
 
@@ -410,7 +528,7 @@ Une vente se fait dans une **transaction TypeORM** :
 
 ---
 
-## 11. Les entités
+## 14. Les entités
 
 ### Vue d'ensemble des relations
 
@@ -502,7 +620,7 @@ Table **immuable** : pas d'`updatedAt`. Une vente ne se modifie jamais.
 
 ---
 
-## 12. Choix techniques importants
+## 15. Choix techniques importants
 
 ### UUID pour tous les IDs
 Non-prédictible, non-énumérable. Un entier expose le volume et permet l'énumération des ressources.
@@ -527,15 +645,15 @@ On utilise `@ManyToMany()` + `@JoinTable()` de TypeORM. La table `exhibition_art
 - `CreateUserDTO` → données saisies par l'utilisateur via l'API (email, password, firstName, lastName, role)
 - `CreateUserInternalDTO` → étend `CreateUserDTO` avec les champs système (`isActive`) — utilisé uniquement en interne dans les services
 
-### Transaction atomique pour les ventes
-La vente d'une œuvre utilise `EntityManager.transaction()` de TypeORM. Les 3 opérations (créer `Sale`, passer `Artwork` en `SOLD`, créer `ArtworkStatusHistory`) sont atomiques — si l'une échoue, toutes sont annulées (rollback).
+### Transaction atomique pour les ventes et expositions
+La vente et la création d'exposition utilisent `EntityManager.transaction()` de TypeORM. Les opérations associées sont atomiques — si l'une échoue, toutes sont annulées (rollback).
 
 ### BusinessRuleViolationFilter
 Sépare les erreurs métier (`422`) des erreurs de validation DTO (`400`). Permet un traitement différencié des deux types d'erreur côté client.
 
 ---
 
-## 13. Tests
+## 16. Tests
 
 ```bash
 npm run test       # lance tous les tests
@@ -547,13 +665,18 @@ npm run test:cov   # avec rapport de couverture
 | Unitaire | `auth/auth.service.spec.ts` | register (email déjà existant), login (user non trouvé, mauvais password, succès) |
 | Unitaire | `common/guards/role.guard.spec.ts` | pas de rôle requis, bon rôle, mauvais rôle |
 | Intégration | `auth/auth.integration.spec.ts` | POST /auth/login → 401, POST /auth/login → 200 + cookies |
+| Unitaire | `artists/artists.service.spec.ts` | CRUD artiste, rattachement galerie, transfert admin et suppression |
+| Unitaire | `artworks/artworks.service.spec.ts` | création avec historique initial, transitions de statuts, suppression |
+| Unitaire | `exhibitions/exhibitions.service.spec.ts` | création expo, clôture avec retour d'œuvres, gestion des prêts |
+| Unitaire | `common/guards/ownership.guard.spec.ts` | validation d'accès Galerie propriétaire vs Galerie tierce vs Admin |
+| Unitaire | `common/pipes/max-active-artworks.pipe.spec.ts` | validation du quota (50 œuvres max par artiste) |
 | Unitaire | `sales/sales.service.spec.ts` | calcul commission (40/35/30%), montant artiste |
 | Unitaire | `sales/pipes/sale-price-validation.pipe.spec.ts` | validation prix > 0 |
 | Intégration | `sales/sales.integration.spec.ts` | POST /sales → 201, POST /sales → 400 |
 
 ---
 
-## 14. Structure des fichiers
+## 17. Structure des fichiers
 
 ```
 src/
@@ -565,9 +688,9 @@ src/
 │   ├── decorators/              ← @Public(), @Roles(), @CurrentUser()
 │   ├── enums/                   ← tous les enums centralisés
 │   ├── filters/                 ← GlobalExceptionFilter, BusinessRuleViolationFilter
-│   ├── guards/                  ← JwtGuard, RoleGuard
+│   ├── guards/                  ← JwtGuard, RoleGuard, OwnershipGuard
 │   ├── interceptors/            ← LoggingInterceptor, ResponseInterceptor
-│   ├── pipes/                   ← NormalizeEmailPipe, SalePriceValidationPipe
+│   ├── pipes/                   ← NormalizeEmailPipe, MaxActiveArtworksPipe, SalePriceValidationPipe
 │   └── value-objects/           ← Dimensions (JSONB)
 ├── entities/                    ← toutes les entités TypeORM (barrel export via index.ts)
 ├── auth/                        ← register, login, refresh, logout
@@ -576,6 +699,12 @@ src/
 │   └── dto/                     ← CreateUserDTO, LoginDTO
 ├── users/                       ← findByEmail, findById, create, updateRefreshToken
 │   └── dto/                     ← CreateUserDTO, CreateUserInternalDTO
+├── artists/                     ← CRUD artistes, rattachement galerie, transfert admin
+│   └── dto/                     ← CreateArtistDto, UpdateArtistDto, TransferArtistDto
+├── artworks/                    ← CRUD œuvres, statuts, historique ArtworkStatusHistory
+│   └── dto/                     ← CreateArtworkDto, ChangeArtworkStatusDto
+├── exhibitions/                 ← expositions, prêts inter-galeries
+│   └── dto/                     ← CreateExhibitionDto, UpdateExhibitionDto, CreateLoanDto
 ├── admin/                       ← activation des comptes galerie
 ├── sales/                       ← contrat de vente, commission, transaction
 │   ├── dto/                     ← CreateSaleDto
@@ -591,7 +720,7 @@ src/
 
 ---
 
-## 15. Variables d'environnement
+## 18. Variables d'environnement
 
 Voir `.env.example` pour la liste complète. Les variables sont validées au démarrage — l'app refuse de lancer si une variable obligatoire est manquante.
 
@@ -608,3 +737,148 @@ Voir `.env.example` pour la liste complète. Les variables sont validées au dé
 | `JWT_EXPIRES_IN` | Non | `15m` | Durée des access tokens |
 | `JWT_REFRESH_SECRET` | Oui | — | Secret pour les refresh tokens |
 | `JWT_REFRESH_EXPIRES_IN` | Non | `7d` | Durée des refresh tokens |
+
+---
+
+## 19. Guide Swagger — Exemples de Payloads JSON pour chaque route
+
+Tous les exemples ci-dessous sont pré-configurés dans la documentation Swagger (`http://localhost:3000/api/docs`). Vous pouvez directement les copier-coller dans Swagger UI en cliquant sur **"Try it out"**.
+
+### A. Authentification (`/api/v1/auth`)
+
+#### Inscription Galerie : `POST /api/v1/auth/register`
+```json
+{
+  "email": "galerie.louvre@consignart.com",
+  "password": "Password123!",
+  "firstName": "Galerie",
+  "lastName": "Du Louvre",
+  "role": "gallery"
+}
+```
+
+#### Connexion Galerie : `POST /api/v1/auth/login`
+```json
+{
+  "email": "galerie.louvre@consignart.com",
+  "password": "Password123!"
+}
+```
+
+---
+
+### B. Artistes (`/api/v1/artists`)
+
+#### Créer un artiste : `POST /api/v1/artists`
+```json
+{
+  "firstName": "Claude",
+  "lastName": "Monet",
+  "biography": "Peintre impressionniste français.",
+  "portfolioURL": "https://monet-art.com",
+  "nationality": "Française",
+  "enterAt": "2026-01-15T00:00:00.000Z"
+}
+```
+
+#### Modifier un artiste : `PATCH /api/v1/artists/{id}`
+```json
+{
+  "biography": "Nouvelle biographie mise à jour pour Monet.",
+  "nationality": "Française (Maître Impressionniste)"
+}
+```
+
+#### Changer le statut d'un artiste : `PATCH /api/v1/artists/{id}/status`
+```json
+{
+  "status": "inactive"
+}
+```
+
+#### Transférer un artiste (Admin uniquement) : `POST /api/v1/artists/{id}/transfer`
+```json
+{
+  "targetGalleryId": "COLLER_ICI_L_ID_DE_LA_NOUVELLE_GALERIE",
+  "enterAt": "2026-09-01T00:00:00.000Z"
+}
+```
+
+---
+
+### C. Œuvres (`/api/v1/artworks`)
+
+#### Déposer une œuvre : `POST /api/v1/artworks`
+*(Remplacez `"artistId"` par l'ID de l'artiste créé).*
+
+```json
+{
+  "title": "Nymphéas",
+  "description": "Peinture à l'huile emblématique sur toile.",
+  "creationYear": 1914,
+  "technic": "oil",
+  "dimensions": {
+    "height": 200,
+    "width": 200,
+    "depth": 5
+  },
+  "sellPrice": 1500000,
+  "reservePrice": 1200000,
+  "imageURL": "https://example.com/nympheas.jpg",
+  "artistId": "COLLER_ICI_L_ID_DE_L_ARTISTE"
+}
+```
+
+#### Changer le statut d'une œuvre : `PATCH /api/v1/artworks/{id}/status`
+*(Statuts autorisés : `"available"`, `"on_loan"`, `"sold"`, `"returned"`).*
+```json
+{
+  "toStatus": "on_loan",
+  "reason": "Prêt temporaire pour exposition de rentrée"
+}
+```
+
+---
+
+### D. Expositions & Prêts (`/api/v1/exhibitions`)
+
+#### Créer une exposition : `POST /api/v1/exhibitions`
+*(Remplacez les IDs dans `artworkIds` par ceux d'œuvres au statut `available`).*
+
+```json
+{
+  "name": "Les Maîtres de l Impressionnisme",
+  "startDate": "2026-09-01T00:00:00.000Z",
+  "endDate": "2026-10-31T00:00:00.000Z",
+  "location": "Paris - Grand Palais",
+  "type": "physical",
+  "description": "Une exposition rétrospective majeure.",
+  "artworkIds": [
+    "COLLER_ICI_L_ID_DE_L_OEUVRE"
+  ]
+}
+```
+
+#### Enregistrer un prêt inter-galeries : `POST /api/v1/exhibitions/loans`
+```json
+{
+  "artworkId": "COLLER_ICI_L_ID_DE_L_OEUVRE",
+  "borrowerGalleryId": "COLLER_ICI_L_ID_DE_LA_GALERIE_EMPRUNTEUSE",
+  "startDate": "2026-11-01T00:00:00.000Z",
+  "endDate": "2026-12-31T00:00:00.000Z",
+  "conditions": "Assurance tous risques et transport spécialisé sous température contrôlée."
+}
+```
+
+---
+
+### E. Ventes (`/api/v1/sales`)
+
+#### Créer une vente : `POST /api/v1/sales`
+```json
+{
+  "artworkId": "COLLER_ICI_L_ID_DE_L_OEUVRE",
+  "buyerId": "COLLER_ICI_L_ID_DU_COLLECTEUR",
+  "salePrice": 1500000
+}
+```
